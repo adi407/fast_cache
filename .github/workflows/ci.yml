@@ -193,11 +193,11 @@ jobs:
         env:
           FASTCACHE_METRICS_PORT: '0'
         run: |
-          # Strip every JDK from PATH so the only runtime available is the packaged one. Ubuntu
-          # runners ship a JDK by default, so without this the test would pass for the wrong reason.
+          # Reduce PATH to the interpreter's own bin directory and nothing else, so no java is
+          # reachable by any name. Filtering out PATH entries that *look* like a JDK is not enough:
+          # Ubuntu images put a java symlink in /usr/bin, whose path contains neither "jdk" nor "java".
           unset JAVA_HOME
-          CLEAN_PATH=$(python -c "import os; print(':'.join(p for p in os.environ['PATH'].split(':') if 'jdk' not in p.lower() and 'java' not in p.lower()))")
-          export PATH="$CLEAN_PATH"
+          export PATH="$(dirname "$(command -v python)")"
           if command -v java >/dev/null 2>&1; then
             echo "::error::java is still on PATH; this test would not prove anything"
             exit 1
