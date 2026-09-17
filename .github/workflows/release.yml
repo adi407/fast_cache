@@ -115,11 +115,20 @@ jobs:
         if: ${{ github.event_name != 'push' && inputs.dry_run }}
         env:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        # `verify`, not `deploy` with a skip flag. The publishing plugin is a build extension, so a
+        # `deploy` invocation depends on one property being spelled exactly right to avoid contacting
+        # Central - and if that spelling is ever wrong, a "dry" run silently creates a real
+        # deployment. Stopping at `verify` cannot reach the network by construction, which is the only
+        # guarantee worth having. It still proves what this run exists to prove: the key imports, the
+        # passphrase is right, and every artifact signs.
         run: |
-          mvn -B -ntp -Prelease -DskipTests -Dcentral-publishing.skipPublishing=true deploy \
-            -DaltDeploymentRepository=local::file:./staging
-          echo "--- signed artifacts that would have been published ---"
+          mvn -B -ntp -Prelease -DskipTests verify
+          echo '--- signatures produced (one per artifact) ---'
           find . -name '*.asc' | sort
+          count=$(find . -name '*.asc' | wc -l)
+          [ "$count" -ge 6 ] || { echo "::error::expected at least 6 signatures, found $count"; exit 1; }
+          echo '--- verifying a signature against the imported key ---'
+          gpg --verify fastcache-engine/target/fastcache-engine.jar.asc fastcache-engine/target/fastcache-engine.jar
 
       - name: Report
         run: |
