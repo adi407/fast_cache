@@ -11,7 +11,7 @@
   <name>FastCache</name>
   <description>Zero-infrastructure, off-heap, virtual-threaded cache engine for AI workloads</description>
 
-  <url>https://github.com/adi407/fast_cache</url>
+  <url child.project.url.inherit.append.path="false">https://github.com/adi407/fast_cache</url>
 
   <licenses>
     <license>
@@ -29,10 +29,12 @@
     </developer>
   </developers>
 
-  <scm>
+  <scm child.scm.connection.inherit.append.path="false"
+       child.scm.developerConnection.inherit.append.path="false"
+       child.scm.url.inherit.append.path="false">
     <connection>scm:git:https://github.com/adi407/fast_cache.git</connection>
     <developerConnection>scm:git:git@github.com:adi407/fast_cache.git</developerConnection>
-    <url>https://github.com/adi407/fast_cache</url>
+    <url child.project.url.inherit.append.path="false">https://github.com/adi407/fast_cache</url>
     <tag>HEAD</tag>
   </scm>
 
@@ -46,6 +48,12 @@
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <spring.boot.version>3.3.4</spring.boot.version>
+
+    <!--
+      Without these, Maven appends each module's artifactId to the inherited <url> and <scm> values,
+      publishing dead links like .../fast_cache/fastcache-engine on every child artifact.
+    -->
+    <maven.compiler.parameters>true</maven.compiler.parameters>
   </properties>
 
   <dependencyManagement>
@@ -93,4 +101,97 @@
       </plugins>
     </pluginManagement>
   </build>
+
+  <profiles>
+    <!--
+      Everything Maven Central requires, kept out of the default build so day-to-day `mvn verify` stays
+      fast and needs no GPG key. Activated by `mvn -Prelease deploy`, which is what the release workflow
+      runs on a version tag.
+
+      Central rejects a deployment that is missing any of: a -sources.jar, a -javadoc.jar, a .asc
+      signature for every artifact, or the name/description/url/licence/developer/scm metadata (which
+      lives in this pom and is inherited by both modules).
+    -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals><goal>jar-no-fork</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.6.3</version>
+            <configuration>
+              <!--
+                Records document their components in the class comment rather than with @param tags, so
+                strict doclint reports a warning per component. Everything else stays checked; this
+                suppresses only the missing-tag category.
+              -->
+              <doclint>all,-missing</doclint>
+              <quiet>true</quiet>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals><goal>jar</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.4</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals><goal>sign</goal></goals>
+                <configuration>
+                  <!--
+                    loopback pinentry is required on a CI runner: there is no TTY for gpg to prompt on,
+                    and without it the signing step hangs until the job times out.
+                  -->
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.7.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <!-- Matches the <server><id> the workflow writes into settings.xml. -->
+              <publishingServerId>central</publishingServerId>
+              <!--
+                Deliberately false: the deployment lands in the Portal as a validated draft and a human
+                clicks publish. A release to Central is irreversible - versions can never be deleted or
+                overwritten - so the first few releases should not be one tag push away from permanent.
+              -->
+              <autoPublish>false</autoPublish>
+              <waitUntil>validated</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>

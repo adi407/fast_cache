@@ -158,6 +158,64 @@ jobs:
           done || echo "(no sidecar log found)"
 
   # ---------------------------------------------------------------------------------------------------
+  # The no-JDK path. This is the plug-and-play story for the least technical user: someone with no Java
+  # on their machine at all, for whom `pip install "fastcache-ai[jre]"` is the difference between a
+  # working cache and one that silently runs uncached forever. Nothing else in CI covers it, because
+  # every other job installs a JDK first.
+  # ---------------------------------------------------------------------------------------------------
+  bundled-jre:
+    name: Works with no system JDK
+    runs-on: ubuntu-latest
+    needs: java
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download the sidecar JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: sidecar-jar
+          path: python/fastcache_ai/_bin
+
+      - name: Install with the bundled JRE extra
+        working-directory: python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[jre]"
+
+      - name: Boot the engine with JAVA_HOME unset and no java on PATH
+        working-directory: python
+        env:
+          FASTCACHE_METRICS_PORT: '0'
+        run: |
+          # Strip every JDK from PATH so the only runtime available is the packaged one. Ubuntu
+          # runners ship a JDK by default, so without this the test would pass for the wrong reason.
+          unset JAVA_HOME
+          CLEAN_PATH=$(python -c "import os; print(':'.join(p for p in os.environ['PATH'].split(':') if 'jdk' not in p.lower() and 'java' not in p.lower()))")
+          export PATH="$CLEAN_PATH"
+          if command -v java >/dev/null 2>&1; then
+            echo "::error::java is still on PATH; this test would not prove anything"
+            exit 1
+          fi
+          echo "confirmed: no java on PATH"
+
+          python - <<'PY'
+          import fastcache_ai as fc
+
+          fc.ensure_sidecar()
+          assert fc.ping(), "sidecar did not start from the bundled JRE"
+          fc.put("k", "booted without a system JDK")
+          assert fc.get("k") == "booted without a system JDK"
+          print("jdk4py fallback works:", fc.info()["resolved"])
+          fc.shutdown_sidecar()
+          PY
+
+  # ---------------------------------------------------------------------------------------------------
   # Packaging: the wheel must actually build and import, on a clean interpreter with no source tree.
   # ---------------------------------------------------------------------------------------------------
   package:
