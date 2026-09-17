@@ -244,15 +244,16 @@ Build from source for now.
 
 Honest caveats, because you will hit them otherwise:
 
-- **CI runs on Linux, macOS and Windows** across Python 3.10&ndash;3.13 and JDK 21, and builds and
-  installs the wheel into a clean environment on every push. The badge above is the source of truth;
-  development to date has been on Windows, so treat the first green run on the POSIX platforms
-  (`fcntl` locking, process-group signalling) as the point those paths became verified rather than
-  merely written.
+- **Verified on Linux, macOS and Windows** by CI on every push: 125 Java tests on JDK 21 (plus a JDK 25
+  forward-compatibility canary), 70 Python integration tests across 3.10&ndash;3.13, and a wheel build
+  that is installed into a clean virtualenv and round-tripped. The POSIX paths (`fcntl` locking,
+  process-group signalling, SIGKILL orphan reaping) are covered there &mdash; development happened on
+  Windows, and the Linux/macOS runs are what makes those paths verified rather than merely written.
 - **Single-node, non-durable, unauthenticated.** The protocol and the console bind to loopback and have no
   auth. Do not expose either.
 - **The savings figure is an estimate**, with the assumptions listed above.
-- **Not yet run under sustained production load.** Correctness is tested; multi-day soak behaviour is not.
+- **Not yet run under sustained production load.** Correctness is tested on every push; multi-day soak
+  behaviour, memory fragmentation over weeks and real traffic shapes are not.
 
 If you find a bug, an issue with a reproduction is worth more than a star.
 
