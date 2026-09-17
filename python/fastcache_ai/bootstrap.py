@@ -1,7 +1,7 @@
 """Process lifecycle autopilot: find a running Java sidecar, or quietly become the one that starts it.
 
 This module is the entire "zero infrastructure" promise. No Docker, no Redis, no ``docker-compose up``, no
-port to pick, no service to remember to start. ``import fastcache`` and the engine is there.
+port to pick, no service to remember to start. ``import fastcache_ai`` and the engine is there.
 
 The sequence, in order of cost:
 
@@ -230,7 +230,7 @@ def find_jar() -> Path:
     try:
         from importlib import resources
 
-        packaged = resources.files("fastcache").joinpath("_bin/fastcache-engine.jar")
+        packaged = resources.files("fastcache_ai").joinpath("_bin/fastcache-engine.jar")
         if packaged.is_file():
             return Path(str(packaged))
     except (ImportError, ModuleNotFoundError, AttributeError, TypeError):

@@ -20,11 +20,11 @@ import time
 
 import pytest
 
-import fastcache  # noqa: E402
-from fastcache import fastcache as cached  # noqa: E402
-from fastcache.codec import Codec  # noqa: E402
-from fastcache.l1 import MISS, HotKeyCache, NullL1  # noqa: E402
-from fastcache.ttl import format_ttl, parse_ttl  # noqa: E402
+import fastcache_ai as fastcache  # noqa: E402
+from fastcache_ai import fastcache as cached  # noqa: E402
+from fastcache_ai.codec import Codec  # noqa: E402
+from fastcache_ai.l1 import MISS, HotKeyCache, NullL1  # noqa: E402
+from fastcache_ai.ttl import format_ttl, parse_ttl  # noqa: E402
 
 np = pytest.importorskip("numpy")
 
@@ -122,7 +122,7 @@ def test_ttl_expiry_has_three_phases():
 
 def test_zero_grace_expires_immediately():
     """With the grace window disabled, TTL is strict again."""
-    from fastcache.client import FastCacheClient
+    from fastcache_ai.client import FastCacheClient
 
     host, port = fastcache.ensure_sidecar()
     strict = FastCacheClient(host=host, port=port, l1=NullL1(), namespace="strict")
@@ -302,7 +302,7 @@ def test_decorator_does_not_cache_exceptions():
 
 def test_decorator_fails_open_when_sidecar_is_unreachable():
     """The contract that matters most: a broken cache degrades to an uncached call, never to an error."""
-    from fastcache.client import FastCacheClient
+    from fastcache_ai.client import FastCacheClient
 
     dead = FastCacheClient(host="127.0.0.1", port=1, timeout=0.2)
 
@@ -382,8 +382,8 @@ def test_oversized_payload_is_rejected_not_crashed():
     goes over the wire, and 65 MB of repeated bytes zstd-compresses to a few kilobytes — which would
     sail past the limit and prove nothing.
     """
-    from fastcache.client import FastCacheClient
-    from fastcache.errors import WriteRejected
+    from fastcache_ai.client import FastCacheClient
+    from fastcache_ai.errors import WriteRejected
 
     host, port = fastcache.ensure_sidecar()
     uncompressed = FastCacheClient(

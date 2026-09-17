@@ -19,10 +19,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-import fastcache
-from fastcache import fastcache as cached
-from fastcache.client import FastCacheClient
-from fastcache.l1 import NullL1
+import fastcache_ai as fastcache
+from fastcache_ai import fastcache as cached
+from fastcache_ai.client import FastCacheClient
+from fastcache_ai.l1 import NullL1
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -247,7 +247,7 @@ def test_single_flight_suppression_is_counted():
 
 _CHILD_SCRIPT = """
 import sys, time
-import fastcache
+import fastcache_ai as fastcache
 host, port = fastcache.ensure_sidecar()
 print("READY %s %d" % (host, port), flush=True)
 fastcache.put("k", "v")
@@ -262,7 +262,7 @@ def test_hard_killed_parent_reaps_its_sidecar(tmp_path):
     has to notice on its own. The parent-PID watch makes that sub-second; the heartbeat window is the
     backstop for a parent that is alive but wedged.
     """
-    from fastcache.bootstrap import probe
+    from fastcache_ai.bootstrap import probe
 
     env = os.environ.copy()
     env["FASTCACHE_HOME"] = str(tmp_path)

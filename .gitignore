@@ -3,4 +3,4 @@ target/
 __pycache__/
 .pytest_cache/
 *.egg-info/
-python/fastcache/_bin/
+python/fastcache_ai/_bin/

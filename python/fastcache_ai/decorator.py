@@ -2,7 +2,7 @@
 
 .. code-block:: python
 
-    from fastcache import fastcache
+    from fastcache_ai import fastcache
 
     @fastcache(ttl="15m")
     def embed(prompt: str) -> np.ndarray:

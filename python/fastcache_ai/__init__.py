@@ -1,8 +1,12 @@
 """FastCache — a zero-infrastructure cache for AI workloads.
 
+Installed as ``fastcache-ai``, imported as ``fastcache_ai``. The import name carries the suffix
+because the bare ``fastcache`` name on PyPI already belongs to an unrelated C implementation of
+``functools.lru_cache``; sharing it would make the two packages overwrite each other on disk.
+
 .. code-block:: python
 
-    from fastcache import fastcache
+    from fastcache_ai import fastcache
 
     @fastcache(ttl="15m")
     def embed(prompt: str):
@@ -172,7 +176,7 @@ def _autostart() -> None:
     the engine is usually already up; if it is not, the call resolves it synchronously.
 
     Failures are recorded, never raised. A missing JDK on a developer laptop must not break
-    ``import fastcache`` at the top of a training script.
+    ``import fastcache_ai`` at the top of a training script.
     """
     global _startup_error
     try:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fastcache-ai"
-version = "1.0.0"
+version = "1.1.0"
 description = "Zero-infrastructure, off-heap, virtual-threaded cache for AI workloads"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,14 +31,16 @@ jre = ["jdk4py>=21"]
 dev = ["pytest>=7.4", "pytest-asyncio>=0.23", "numpy>=1.23", "msgpack>=1.0", "zstandard>=0.21"]
 
 [project.urls]
-Homepage = "https://github.com/fastcache/fastcache"
+Homepage = "https://github.com/adi407/fast_cache"
+Repository = "https://github.com/adi407/fast_cache"
+Issues = "https://github.com/adi407/fast_cache/issues"
 
 [tool.setuptools]
-packages = ["fastcache"]
+packages = ["fastcache_ai"]
 
 [tool.setuptools.package-data]
 # The engine JAR ships inside the wheel; this is what makes the sidecar boot with no external download.
-fastcache = ["_bin/*.jar"]
+fastcache_ai = ["_bin/*.jar"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

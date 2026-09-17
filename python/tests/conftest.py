@@ -19,7 +19,7 @@ os.environ.setdefault("FASTCACHE_AUTOSTART", "0")   # Tests control startup expl
 os.environ.setdefault("FASTCACHE_METRICS_PORT", "0")  # Ephemeral console port: never fight over 8081.
 os.environ.setdefault("FASTCACHE_HEARTBEAT_INTERVAL", "2")
 
-import fastcache  # noqa: E402
+import fastcache_ai as fastcache  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
