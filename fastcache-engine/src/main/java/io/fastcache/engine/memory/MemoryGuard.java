@@ -53,7 +53,18 @@ public final class MemoryGuard {
     private final LongAdder rejections = new LongAdder();
 
     private final ReentrantLock sampleLock = new ReentrantLock();
-    private final AtomicLong lastSampleNanos = new AtomicLong(Long.MIN_VALUE);
+
+    /**
+     * Timestamp of the last OS sample.
+     *
+     * <p>Seeded from {@code System.nanoTime()} in the constructor, never from a sentinel like
+     * {@code Long.MIN_VALUE}. {@code nanoTime()} has an arbitrary origin and its values are meaningful
+     * only when subtracted from each other; {@code now - Long.MIN_VALUE} overflows to a negative number,
+     * which compares as "less than the sample interval" forever. That froze the physical reading at
+     * whatever it happened to be during construction and silently disabled the machine-pressure ceiling
+     * for the life of the process.
+     */
+    private final AtomicLong lastSampleNanos;
     private volatile double physicalRatio;
     private volatile boolean rejecting;
 
@@ -76,6 +87,7 @@ public final class MemoryGuard {
         this.physicalGateFloorBytes = Math.max(64L * 1024 * 1024, (long) (budgetBytes * 0.05));
         this.probe = probe;
         this.physicalRatio = probe.usedRatio();
+        this.lastSampleNanos = new AtomicLong(System.nanoTime());
     }
 
     /**

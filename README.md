@@ -5,10 +5,11 @@
 **A cache for AI workloads that needs no infrastructure.**
 One annotation in Java, one decorator in Python. No Redis, no Docker, no connection string.
 
+[![CI](https://github.com/adi407/fast_cache/actions/workflows/ci.yml/badge.svg)](https://github.com/adi407/fast_cache/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-70%20passing-brightgreen.svg)](python/tests)
+[![Tests](https://img.shields.io/badge/tests-195-brightgreen.svg)](#building-from-source)
 [![Status](https://img.shields.io/badge/status-pre--release-yellow.svg)](#project-status)
 
 </div>
@@ -159,6 +160,7 @@ overhead — that is the honest other end of the range.
 | Memory guard at a 64 MiB budget | sheds writes at 87.5%, no OOM, reads keep serving |
 | Orphan isolation | `kill -9` the parent → JVM exits, releases all memory |
 | Engine under 5,000 concurrent virtual threads | zero native slots leaked at close |
+| Test suite | 125 Java + 70 Python = **195 tests** |
 
 **How the dollar figure is computed.** Characters served from cache ÷ 4 (an input-token estimate), priced
 at the model's published input rate. Three assumptions all push it *upward* versus a real bill: every hit
@@ -225,9 +227,10 @@ Zero config is a supported configuration. These exist for when you need them:
 
 ```bash
 git clone https://github.com/adi407/fast_cache.git && cd fast_cache
-mvn -q package                                   # both Java modules + the sidecar JAR
+
+mvn -B verify                                    # builds both modules, runs 125 Java tests
 cp fastcache-engine/target/fastcache-engine.jar python/fastcache_ai/_bin/
-cd python && pip install -e ".[dev]" && pytest -q
+cd python && pip install -e ".[dev]" && pytest -q # 70 integration tests against a real sidecar
 ```
 
 Requires JDK 21+ (virtual threads) and Python 3.10+.
@@ -241,9 +244,11 @@ Build from source for now.
 
 Honest caveats, because you will hit them otherwise:
 
-- **Tested on Windows 11 / JDK 21.0.11 / Python 3.14 only.** The POSIX paths (`fcntl` file locking, process
-  signalling) are written but unexercised. Linux and macOS CI is the next milestone.
-- **No CI pipeline yet.** The 70 tests are real and pass locally; nothing enforces that on a PR.
+- **CI runs on Linux, macOS and Windows** across Python 3.10&ndash;3.13 and JDK 21, and builds and
+  installs the wheel into a clean environment on every push. The badge above is the source of truth;
+  development to date has been on Windows, so treat the first green run on the POSIX platforms
+  (`fcntl` locking, process-group signalling) as the point those paths became verified rather than
+  merely written.
 - **Single-node, non-durable, unauthenticated.** The protocol and the console bind to loopback and have no
   auth. Do not expose either.
 - **The savings figure is an estimate**, with the assumptions listed above.

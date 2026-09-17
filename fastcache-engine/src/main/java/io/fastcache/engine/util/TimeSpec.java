@@ -62,7 +62,9 @@ public final class TimeSpec {
         if (millis <= 0) {
             return NEVER;
         }
-        // Saturate rather than overflow: a 300-year TTL is indistinguishable from "never" in practice.
+        // Overflow guard, not a policy cutoff. The threshold sits around 73 million years, so every
+        // realistic TTL passes through exactly as written; this only catches a magnitude so large that
+        // the double-to-long narrowing below would wrap to a negative duration and expire instantly.
         return millis >= Long.MAX_VALUE / 4.0 ? NEVER : (long) millis;
     }
 
