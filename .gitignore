@@ -1,0 +1,6 @@
+target/
+*.class
+__pycache__/
+.pytest_cache/
+*.egg-info/
+python/fastcache/_bin/
