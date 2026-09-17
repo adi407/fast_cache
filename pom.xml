@@ -175,7 +175,13 @@
           <plugin>
             <groupId>org.sonatype.central</groupId>
             <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.7.0</version>
+            <!--
+              0.7.0 uploaded the bundle fine and then crashed polling for validation status: the Portal
+              API had grown a "warnings" field that the plugin's JSON parser rejected as unknown. The
+              artifacts were never the problem - the client was simply older than the server. Pinning a
+              current version keeps the two in step.
+            -->
+            <version>0.11.0</version>
             <extensions>true</extensions>
             <configuration>
               <!-- Matches the <server><id> the workflow writes into settings.xml. -->
@@ -186,7 +192,6 @@
                 overwritten - so the first few releases should not be one tag push away from permanent.
               -->
               <autoPublish>false</autoPublish>
-              <waitUntil>validated</waitUntil>
             </configuration>
           </plugin>
         </plugins>
