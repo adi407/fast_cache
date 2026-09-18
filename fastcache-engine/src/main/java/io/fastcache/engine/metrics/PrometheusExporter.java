@@ -132,9 +132,13 @@ public final class PrometheusExporter {
                 savings.actualCostUsd());
 
         // --- latency ----------------------------------------------------------------------------------
-        histogram(out, engine.getLatency());
-        histogram(out, engine.putLatency());
-        histogram(out, engine.deleteLatency());
+        // One HELP and one TYPE for the family, then every operation's series beneath it. Emitting the
+        // header per operation produces duplicate TYPE lines for the same metric name, which Prometheus
+        // rejects outright - it fails the entire scrape, not just the offending family.
+        help(out, "operation_duration_seconds", "Engine-side operation latency in seconds", "histogram");
+        histogramSeries(out, engine.getLatency());
+        histogramSeries(out, engine.putLatency());
+        histogramSeries(out, engine.deleteLatency());
 
         // --- per shard --------------------------------------------------------------------------------
         // Labelled rather than flattened, so a hot shard is a query away instead of 32 separate metrics.
@@ -172,10 +176,10 @@ public final class PrometheusExporter {
         out.append(PREFIX).append(name).append(' ').append(number(value)).append('\n');
     }
 
-    private static void histogram(StringBuilder out, LatencyHistogram latency) {
+    /** Series only. The family's HELP/TYPE header is written once by the caller. */
+    private static void histogramSeries(StringBuilder out, LatencyHistogram latency) {
         String name = "operation_duration_seconds";
         String label = latency.name();
-        help(out, name, "Engine-side operation latency in seconds", "histogram");
 
         long[] counts = latency.cumulativeCounts();
         for (int i = 0; i < LatencyHistogram.BUCKET_BOUNDS_SECONDS.length; i++) {

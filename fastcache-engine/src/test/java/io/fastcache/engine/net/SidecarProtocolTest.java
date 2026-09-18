@@ -393,6 +393,28 @@ class SidecarProtocolTest {
     }
 
     @Test
+    @DisplayName("each metric family declares HELP and TYPE exactly once")
+    void prometheusHasNoDuplicateDeclarations() throws IOException {
+        // The three operation histograms share one metric name and differ only by label. Emitting a
+        // header per operation produced three TYPE lines for the same family, which Prometheus rejects -
+        // and it fails the whole scrape, so one duplicate takes every metric off the dashboard.
+        java.util.Map<String, Integer> types = new java.util.HashMap<>();
+        java.util.Map<String, Integer> helps = new java.util.HashMap<>();
+
+        for (String line : httpGet("/metrics/prometheus").split("\n")) {
+            if (line.startsWith("# TYPE ")) {
+                types.merge(line.split(" ")[2], 1, Integer::sum);
+            } else if (line.startsWith("# HELP ")) {
+                helps.merge(line.split(" ")[2], 1, Integer::sum);
+            }
+        }
+
+        assertTrue(types.size() > 30, "expected a substantial metric surface, found " + types.size());
+        types.forEach((name, count) -> assertEquals(1, count, "duplicate # TYPE for " + name));
+        helps.forEach((name, count) -> assertEquals(1, count, "duplicate # HELP for " + name));
+    }
+
+    @Test
     @DisplayName("histogram buckets are cumulative and +Inf equals the count")
     void prometheusHistogramIsWellFormed() throws IOException {
         try (Client client = new Client(port)) {

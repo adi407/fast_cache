@@ -128,8 +128,12 @@ Every sidecar serves a read-only management console on `:8081`, built on the JDK
 └──────────────────────────────────┘
 ```
 
-`/metrics` serves the same data as JSON. Both accept `?model=gpt-4o`, `?model=claude-3-5-sonnet`, or
+`/metrics` serves the same data as JSON, and `/metrics/prometheus` serves it in Prometheus text
+format. All three accept `?model=gpt-4o`, `?model=claude-3-5-sonnet`, or
 `?model=<name>:<usd-per-million>` to re-price the same traffic without a restart.
+
+The console is for looking at one machine now; for anything you operate, see
+[Monitoring](#monitoring).
 
 ---
 
@@ -167,6 +171,182 @@ at the model's published input rate. Three assumptions all push it *upward* vers
 is counted as a full-price call avoided; 4 chars/token is a rule of thumb, not a tokenizer (±15% on English
 prose); and output tokens — usually the expensive half — are not counted at all. It answers "is this cache
 earning its keep", not "what do I owe".
+
+---
+
+## Monitoring
+
+The console is fine for one machine right now. For anything you actually operate, scrape
+`/metrics/prometheus` — it emits 40 metric families in the text exposition format, so FastCache lands in
+the Grafana board and alert rules you already have instead of asking anyone to watch a bespoke page.
+
+```bash
+curl http://127.0.0.1:8081/metrics/prometheus
+```
+
+### Making it reachable
+
+**The console binds `127.0.0.1` by default and has no authentication.** Prometheus cannot scrape loopback
+on another host, so you have to choose deliberately:
+
+| Deployment | How to scrape it |
+|---|---|
+| Prometheus on the same host | works as-is, no change |
+| Container sidecar | `--metrics-host 0.0.0.0`, publish the port only to the pod network |
+| Separate host | `--metrics-host 0.0.0.0` **behind** a firewall rule or reverse proxy that adds auth |
+
+Binding wider exposes aggregate cache behaviour and the host's memory profile to anyone who can reach the
+port. It does not expose cache *keys or values*, but treat it as internal-only regardless — see
+[SECURITY.md](SECURITY.md).
+
+### Scrape config
+
+```yaml
+scrape_configs:
+  - job_name: fastcache
+    metrics_path: /metrics/prometheus
+    # The savings figure is re-priced per scrape; set this to whichever model you actually call.
+    params:
+      model: ['gpt-4o']          # or claude-3-5-sonnet, or your-name:1.25
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['127.0.0.1:8081']
+        labels:
+          service: my-ai-service
+```
+
+### Panels
+
+Copy these straight into Grafana. Each is the query plus what it is actually telling you.
+
+**Hit rate** — the number that decides whether the cache is worth running at all.
+
+```promql
+sum(rate(fastcache_cache_hits_total[5m]))
+  /
+sum(rate(fastcache_cache_hits_total[5m]) + rate(fastcache_cache_misses_total[5m]))
+```
+
+**Latency percentiles** — `le` is already a bucket label, so `histogram_quantile` works directly.
+
+```promql
+histogram_quantile(0.99,
+  sum by (le, operation) (rate(fastcache_operation_duration_seconds_bucket[5m])))
+```
+
+**Memory, all three tiers on one axis** — the panel that proves the off-heap design works. Off-heap grows
+with the cache; heap should stay flat beside it.
+
+```promql
+fastcache_memory_offheap_reserved_bytes
+fastcache_memory_heap_used_bytes
+fastcache_memory_offheap_budget_bytes
+```
+
+**Off-heap headroom** — how close the memory guard is to shedding writes. It rejects at 0.85.
+
+```promql
+fastcache_memory_offheap_reserved_bytes / fastcache_memory_offheap_budget_bytes
+```
+
+**Stampedes prevented** — duplicate backend calls the single-flight defence stopped. Each one is an LLM
+call that did not happen.
+
+```promql
+sum(rate(fastcache_herd_suppressed_total[5m]))
+```
+
+**GC pause** — the assertion the whole design rests on. This should stay flat as the cache grows into
+gigabytes; if it climbs with cache size, something is being retained on the heap that should not be.
+
+```promql
+rate(fastcache_gc_time_seconds_total[5m])
+```
+
+**CPU** — filter the negatives, which mean "the JVM has not sampled twice yet", not zero.
+
+```promql
+fastcache_process_cpu_ratio >= 0
+```
+
+**Shard balance** — 1.0 is perfect. Sustained values above ~1.5 mean a hot key needs client-side L1
+caching rather than more shards.
+
+```promql
+fastcache_cache_shard_skew
+```
+
+**Hottest shard** — for when skew is high and you want to know which one.
+
+```promql
+topk(3, fastcache_shard_entries)
+```
+
+**Estimated spend avoided** — an estimate, with the assumptions in [§4](#the-console). Good for a trend,
+not for an invoice.
+
+```promql
+fastcache_cost_saved_usd
+```
+
+### Alerts
+
+The four worth having. Everything else is a dashboard, not a page.
+
+```yaml
+groups:
+  - name: fastcache
+    rules:
+      - alert: FastCacheSheddingWrites
+        expr: fastcache_memory_rejecting_writes == 1
+        for: 2m
+        annotations:
+          summary: "Memory guard is rejecting writes"
+          description: >
+            The cache is at its memory ceiling and shedding writes. Reads still serve, so this degrades
+            rather than breaks - but the hit rate will decay. Raise FASTCACHE_OFFHEAP_MAX or lower the TTL.
+
+      - alert: FastCacheHitRateCollapsed
+        expr: |
+          sum(rate(fastcache_cache_hits_total[10m]))
+            /
+          sum(rate(fastcache_cache_hits_total[10m]) + rate(fastcache_cache_misses_total[10m]))
+            < 0.2
+        for: 15m
+        annotations:
+          summary: "Hit rate below 20%"
+          description: >
+            Either the traffic stopped repeating, or something is evicting early. Check
+            fastcache_cache_ttl_evictions_total against cache_entries. A cache at this hit rate is
+            costing more than it saves.
+
+      - alert: FastCacheOffHeapLeak
+        # Slots should fall as entries fall. Slots climbing while entries do not means the reference
+        # counting is not releasing, which ends in the OOM killer with a nearly empty Java heap.
+        expr: |
+          delta(fastcache_memory_offheap_slots[1h]) > 0
+          and delta(fastcache_cache_entries[1h]) <= 0
+        for: 30m
+        annotations:
+          summary: "Off-heap slots growing while entry count is not"
+
+      - alert: FastCacheNoClients
+        expr: fastcache_clients_connected == 0
+        for: 10m
+        annotations:
+          summary: "No client has sent a heartbeat for 10 minutes"
+          description: >
+            With the orphan watchdog armed the engine reaps itself after 40s of silence, so this usually
+            means the application died rather than the cache.
+```
+
+### A note on what these numbers are
+
+`fastcache_cost_saved_usd` and `fastcache_tokens_avoided_total` are **estimates**: characters divided by
+four as an input-token proxy, priced at the selected model's published input rate, with output tokens not
+counted at all. Graph them for a trend. Do not reconcile them against a bill.
+
+Everything else — hit rates, latency, memory, GC, shard balance — is measured, not inferred.
 
 ---
 
