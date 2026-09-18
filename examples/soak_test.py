@@ -25,6 +25,12 @@ Usage::
     python soak_test.py --hours 0.5 --workers 16     # quick confidence run
 
 Writes a CSV sample every 30s next to this file. Analyse it afterwards with --report.
+
+Two things about reading that CSV, which ``--report`` handles and a spreadsheet will not. Memory here
+sawtooths by hundreds of MB as large payloads land and expire together, so the average of a window
+says more about which phase of the cycle it covered than about drift - the floor is the part a leak
+raises. And the sampler only runs when the OS lets it: a suspended laptop leaves a gap with a drained
+cache on the far side, which is why each row records the ``gap_s`` it actually covers.
 """
 
 from __future__ import annotations
@@ -54,6 +60,23 @@ from fastcache_ai import fastcache  # noqa: E402
 
 SAMPLE_SECONDS = 30
 CSV_PATH = os.path.join(_HERE, "soak-samples.csv")
+
+#: A sample interval this far past nominal means the process was not running the whole time: a
+#: suspended laptop, a stalled RSS probe, the sampler thread starved. The rows on either side of such
+#: a gap describe different conditions and must not be pooled into one average.
+GAP_FACTOR = 2.0
+#: Samples to discard after a resume. The cache spent the gap idle - TTLs expired and the sweeper
+#: drained it - so the first rows back describe a cache refilling, not one under steady load.
+GAP_RECOVERY_SAMPLES = 2
+#: RSS and the off-heap reserve sawtooth by hundreds of MB under this workload: 4 MB payloads land,
+#: live out a 30s TTL, and are released together. The trough is the part that carries meaning, because
+#: a leak cannot give memory back and so raises the floor. A percentile rather than the minimum, so
+#: that one failed probe or one unusually deep trough cannot define it.
+FLOOR_PERCENTILE = 10
+#: Share of sample intervals that may contain shed writes before the memory checks stop meaning
+#: anything. While MemoryGuard is rejecting, it is holding the reserve down at its gate floor - so the
+#: floor being measured is the guard's number, not the cache's, and no leak could show through it.
+GUARD_SHEDDING_LIMIT = 0.25
 
 _stop = threading.Event()
 _errors: list[str] = []
@@ -126,12 +149,33 @@ def worker(worker_id: int, key_space: int) -> None:
             time.sleep(0.5)
 
 
-def sidecar_rss_bytes() -> int:
-    """Resident set size of the engine process — the ground truth a leak cannot hide from."""
+_last_probe_wall: float | None = None
+
+
+def sidecar_rss_bytes() -> tuple[int, float]:
+    """Resident set size of the engine process, and the wall-clock seconds since the previous probe.
+
+    The interval ships with the number because it is what decides whether the number is comparable to
+    the one before it. The sampler asks for a reading every ``SAMPLE_SECONDS``; what it gets is
+    however long the OS let this process run. A laptop that suspends for an hour leaves two adjacent
+    rows - one a loaded cache, the next a cache that has been idle long enough for every TTL to expire
+    - and nothing in the CSV to say they are an hour apart. RSS appears to collapse, and any analysis
+    reads that as a sample like any other.
+
+    Measured on the wall clock deliberately: ``time.monotonic`` excludes suspended time on Linux,
+    which is exactly the time this is trying to catch.
+
+    Returns ``(0, gap)`` when the probe fails - 0 means "could not read", not "nothing resident".
+    """
+    global _last_probe_wall
+    now = time.time()
+    gap = 0.0 if _last_probe_wall is None else now - _last_probe_wall
+    _last_probe_wall = now
+
     state = fc.bootstrap.read_state() or {}
     pid = state.get("pid")
     if not pid:
-        return 0
+        return 0, gap
     try:
         if os.name == "nt":
             import subprocess
@@ -139,14 +183,14 @@ def sidecar_rss_bytes() -> int:
                 ["powershell", "-NoProfile", "-Command",
                  f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).WorkingSet64"],
                 capture_output=True, text=True, timeout=20)
-            return int((out.stdout or "0").strip() or 0)
+            return int((out.stdout or "0").strip() or 0), gap
         with open(f"/proc/{pid}/status") as handle:
             for line in handle:
                 if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) * 1024
+                    return int(line.split()[1]) * 1024, gap
     except Exception:                                        # noqa: BLE001
         pass
-    return 0
+    return 0, gap
 
 
 def sample(writer, handle, started: float) -> dict:
@@ -154,11 +198,13 @@ def sample(writer, handle, started: float) -> dict:
     engine, l1 = stats["engine"], stats["l1"]
     with _ops_lock:
         ops = dict(_ops)
+    rss_bytes, gap_s = sidecar_rss_bytes()
 
     row = {
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "elapsed_min": round((time.monotonic() - started) / 60, 2),
-        "rss_mb": round(sidecar_rss_bytes() / 1048576, 1),
+        "gap_s": round(gap_s, 1),
+        "rss_mb": round(rss_bytes / 1048576, 1),
         "offheap_reserved_mb": round(engine.get("offheap_reserved", 0) / 1048576, 1),
         "offheap_slots": engine.get("offheap_slots", 0),
         "entries": engine.get("entries", 0),
@@ -194,7 +240,8 @@ def run(hours: float, workers: int, key_space: int) -> int:
 
     started = time.monotonic()
     deadline = started + hours * 3600
-    fields = ["timestamp", "elapsed_min", "rss_mb", "offheap_reserved_mb", "offheap_slots", "entries",
+    fields = ["timestamp", "elapsed_min", "gap_s", "rss_mb", "offheap_reserved_mb", "offheap_slots",
+              "entries",
               "hits", "misses", "stale_hits", "ttl_evictions", "lru_evictions", "write_rejections",
               "herd_suppressed", "refreshes_in_flight", "memory_ratio", "l1_entries", "ops_total",
               "errors"]
@@ -207,9 +254,14 @@ def run(hours: float, workers: int, key_space: int) -> int:
             while time.monotonic() < deadline:
                 time.sleep(SAMPLE_SECONDS)
                 row = sample(writer, handle, started)
+                # Say so at the time, not only in the CSV: a gap here means the rows around it are
+                # not describing the same run conditions.
+                gap = ("" if row["gap_s"] <= SAMPLE_SECONDS * GAP_FACTOR
+                       else f"   GAP {row['gap_s'] / 60:.1f}m")
                 print(f"  {row['elapsed_min']:>7.1f}m  rss={row['rss_mb']:>7.1f}MB  "
                       f"offheap={row['offheap_reserved_mb']:>6.1f}MB  slots={row['offheap_slots']:>6}  "
-                      f"entries={row['entries']:>6}  ops={row['ops_total']:>9}  err={row['errors']}",
+                      f"entries={row['entries']:>6}  ops={row['ops_total']:>9}  err={row['errors']}"
+                      f"{gap}",
                       flush=True)
         except KeyboardInterrupt:
             print("\ninterrupted - writing final sample")
@@ -223,69 +275,171 @@ def run(hours: float, workers: int, key_space: int) -> int:
     return report()
 
 
+def _sample_gaps(rows) -> list[float]:
+    """Wall-clock seconds between each row and the one before it.
+
+    Prefers the recorded ``gap_s``; CSVs written before that column existed are handled by
+    differencing the timestamps, which is the same quantity at second resolution.
+    """
+    if rows and rows[0].get("gap_s") not in (None, ""):
+        return [float(r["gap_s"]) for r in rows]
+    stamps = [datetime.fromisoformat(r["timestamp"]) for r in rows]
+    return [0.0] + [(b - a).total_seconds() for a, b in zip(stamps, stamps[1:])]
+
+
+def _floor(values: list[float]) -> float | None:
+    """The trough a sawtooth keeps returning to, as a low percentile of the window."""
+    ordered = sorted(values)
+    if not ordered:
+        return None
+    return ordered[int(round(FLOOR_PERCENTILE / 100 * (len(ordered) - 1)))]
+
+
 def report() -> int:
-    """Reads the CSV back and judges it. Returns a process exit code."""
+    """Reads the CSV back and judges it. Returns a process exit code.
+
+    Three things this must not do, because a wrong verdict is worse than no verdict:
+
+    * **Average a sawtooth.** RSS here swings between roughly 270 MB and 750 MB on a cycle of a few
+      minutes, because large payloads land together and are released together when their TTL expires.
+      The mean of a window is then mostly a statement about which phase of that cycle the window
+      happened to cover, and two windows sampled at different phases differ by more than any leak
+      would. What a leak actually does is raise the *trough*: memory that is never given back cannot
+      come out of the floor. So every memory check here compares floors.
+    * **Average across a gap.** If sampling stopped - a suspended laptop, most often - the cache sat
+      idle, every TTL expired and the sweeper drained it. The rows on the far side of that gap are a
+      drained cache, not a leaking one, and pooling them with loaded rows moves the result in whatever
+      direction the gap happened to fall. Gaps are detected, reported, and excluded.
+    * **Certify a run that never got to grow.** When MemoryGuard is shedding writes it is holding the
+      reserve at its gate floor, so the floor is the guard's number and a leak cannot show through it.
+      A PASS read off that is as worthless as the false FAIL, so the memory checks abstain instead.
+
+    Exit codes: 0 no drift, 1 a check failed, 2 inconclusive - the run could not answer the
+    question, whether for want of continuous samples or because the guard held the cache down.
+    """
     with open(CSV_PATH, newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     if len(rows) < 3:
         print("not enough samples to judge")
-        return 1
+        return 2
 
-    def series(col):
-        return [float(r[col]) for r in rows]
+    gaps = _sample_gaps(rows)
+    breaks = [i for i, g in enumerate(gaps) if i and g > SAMPLE_SECONDS * GAP_FACTOR]
 
-    # Compare the last quarter against the second quarter: the first quarter is warm-up, so including it
-    # would report cache fill as if it were a leak.
-    n = len(rows)
-    early = rows[n // 4: n // 2]
-    late = rows[-(n // 4):]
+    # Drop the row that closes each gap together with the samples spent refilling behind it. What is
+    # left is the cache under sustained load, which is the only state these checks are about.
+    dropped = {j for i in breaks for j in range(i, min(len(rows), i + 1 + GAP_RECOVERY_SAMPLES))}
+    steady = [r for i, r in enumerate(rows) if i not in dropped]
 
-    def mean(subset, col):
-        return sum(float(r[col]) for r in subset) / len(subset)
+    n = len(steady)
+    if n < 8:
+        print(f"{len(rows)} samples, only {n} of them continuous - "
+              f"not enough unbroken data to judge")
+        return 2
 
-    verdicts = []
+    def col(subset, name, drop_zero=False) -> list[float]:
+        values = [float(r[name]) for r in subset]
+        return [v for v in values if v] if drop_zero else values
 
-    rss_early, rss_late = mean(early, "rss_mb"), mean(late, "rss_mb")
-    rss_growth = (rss_late - rss_early) / max(rss_early, 1) * 100
-    verdicts.append(("RSS drift", f"{rss_early:.0f} -> {rss_late:.0f} MB ({rss_growth:+.1f}%)",
-                     abs(rss_growth) < 25))
+    # Still skipping the first quarter: that is cache fill, and counting it as drift would report a
+    # cache doing its job as a leak.
+    early, late = steady[n // 4: n // 2], steady[-(n // 4):]
 
-    off_early, off_late = mean(early, "offheap_reserved_mb"), mean(late, "offheap_reserved_mb")
-    verdicts.append(("Off-heap reserved", f"{off_early:.0f} -> {off_late:.0f} MB",
-                     off_late <= max(off_early * 1.5, off_early + 64)))
+    # Writes shed under memory pressure are not a cache defect - MemoryGuard refusing writes is the
+    # guard doing its documented job. But they decide whether the memory checks below mean anything.
+    # The guard engages its machine-pressure gate once the engine's own reservation crosses
+    # ``physicalGateFloorBytes`` (max of 64 MiB and 5% of the budget), so a shedding run sits pinned
+    # at that floor. Reading a leak off a reserve the guard is holding down is not possible: the
+    # number is the gate floor, not the working set.
+    shed = col(steady, "write_rejections")
+    intervals = [b - a for a, b in zip(shed, shed[1:])]
+    shedding = sum(1 for d in intervals if d > 0) / max(len(intervals), 1)
+    guard_quiet = shedding <= GUARD_SHEDDING_LIMIT
 
-    slots = series("offheap_slots")
-    verdicts.append(("Native slots bounded", f"max {max(slots):.0f}, final {slots[-1]:.0f}",
-                     slots[-1] <= max(slots) * 1.1))
+    verdicts: list[tuple[str, str, bool | None]] = []
 
-    evictions = series("ttl_evictions")
+    def memory_verdict(name, detail, ok) -> tuple[str, str, bool | None]:
+        """A memory check is only evidence when the guard left the cache alone to grow."""
+        if guard_quiet:
+            return name, detail, ok
+        return name, f"{detail}  [guard shedding - not judged]", None
+
+    # A zero here is a probe that failed, not an empty process, so it must not be allowed to define
+    # the floor.
+    rss_early, rss_late = _floor(col(early, "rss_mb", True)), _floor(col(late, "rss_mb", True))
+    if rss_early is None or rss_late is None:
+        verdicts.append(("RSS floor", "no usable RSS readings", None))
+    else:
+        growth = (rss_late - rss_early) / max(rss_early, 1) * 100
+        # One-sided on purpose: a floor that falls is the sweeper working, not drift.
+        verdicts.append(memory_verdict(
+            "RSS floor", f"{rss_early:.0f} -> {rss_late:.0f} MB ({growth:+.1f}%)", growth < 25))
+
+    off_early = _floor(col(early, "offheap_reserved_mb"))
+    off_late = _floor(col(late, "offheap_reserved_mb"))
+    verdicts.append(memory_verdict(
+        "Off-heap reserved floor", f"{off_early:.0f} -> {off_late:.0f} MB",
+        off_late <= max(off_early * 1.5, off_early + 64)))
+
+    # The old form of this check - final <= max * 1.1 - could never fail, since the final value is by
+    # definition no greater than the maximum. A leaked slot is one that never comes back, so the floor
+    # is what shows it.
+    slot_early, slot_late = _floor(col(early, "offheap_slots")), _floor(col(late, "offheap_slots"))
+    verdicts.append(memory_verdict(
+        "Native slot floor", f"{slot_early:.0f} -> {slot_late:.0f} slots",
+        slot_late <= max(slot_early * 1.5, slot_early + 200)))
+
+    # Reported whatever the outcome: a run that spent its time shedding did not exercise the thing the
+    # soak exists to test, and that is worth saying out loud rather than leaving as a silent PASS.
+    verdicts.append(("Write admission",
+                     f"{shed[-1] - shed[0]:.0f} writes shed, in {shedding * 100:.0f}% of intervals",
+                     True if guard_quiet else None))
+
+    # Cumulative counters, so the sawtooth does not apply - but they are still read off the continuous
+    # rows, so that TTLs expiring during an idle gap are not mistaken for the sweeper keeping up.
+    evictions = col(steady, "ttl_evictions")
     verdicts.append(("Sweeper still reclaiming", f"{evictions[-1]:.0f} TTL evictions total",
                      evictions[-1] > evictions[len(evictions) // 2]))
 
-    inflight = series("refreshes_in_flight")
+    inflight = col(steady, "refreshes_in_flight")
     verdicts.append(("Refresh leases released", f"max in-flight {max(inflight):.0f}",
                      max(inflight) < 50))
 
-    errors = series("errors")
+    errors = col(rows, "errors")
     verdicts.append(("No client errors", f"{errors[-1]:.0f} errors", errors[-1] == 0))
 
     print("=" * 74)
-    print(f"SOAK REPORT  ({n} samples over {rows[-1]['elapsed_min']} minutes, "
+    print(f"SOAK REPORT  ({len(rows)} samples over {rows[-1]['elapsed_min']} minutes, "
           f"{rows[-1]['ops_total']} operations)")
+    if breaks:
+        unobserved = sum(gaps[i] - SAMPLE_SECONDS for i in breaks)
+        print(f"  {len(breaks)} sampling gap(s): {unobserved / 60:.0f} minutes unobserved, "
+              f"longest {max(gaps[i] for i in breaks) / 60:.0f}m "
+              f"({len(rows) - n} sample(s) excluded)")
+    print(f"  comparing the floor of {len(early)} early against {len(late)} late continuous samples")
     print("=" * 74)
-    failed = 0
+
+    failed = unknown = 0
     for name, detail, ok in verdicts:
-        print(f"  {'PASS' if ok else 'FAIL'}  {name:28} {detail}")
-        failed += 0 if ok else 1
+        print(f"  {'PASS' if ok else 'FAIL' if ok is False else '????'}  {name:28} {detail}")
+        failed += ok is False
+        unknown += ok is None
 
     if _errors:
-        print("\n  first errors:")
+        print()
+        print("  first errors:")
         for e in _errors[:5]:
             print(f"    {e}")
 
     print()
-    print("VERDICT:", "no drift detected" if failed == 0 else f"{failed} check(s) failed")
-    return 0 if failed == 0 else 1
+    if failed:
+        print("VERDICT:", f"{failed} check(s) failed")
+        return 1
+    if unknown:
+        print("VERDICT:", f"inconclusive - {unknown} check(s) could not be judged from this run")
+        return 2
+    print("VERDICT: no drift detected")
+    return 0
 
 
 if __name__ == "__main__":
