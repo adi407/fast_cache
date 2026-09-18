@@ -1,0 +1,64 @@
+name: Feature request
+description: Suggest a capability or a change in behaviour
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth knowing before you write this up: a few things are deliberately out of scope, and saying so
+        up front is fairer than declining later.
+
+        - **Replication, persistence, clustering** — FastCache is single-node and non-durable on purpose.
+          Redis already does those well.
+        - **A runtime dependency in `fastcache-engine`** — the engine ships inside a Python wheel, so every
+          transitive megabyte is one a data scientist downloads.
+        - **Authentication or binding to a public interface** — the protocol is unauthenticated by design
+          and loopback-bound. Exposing it is a different product with a different threat model.
+
+        None of these are absolute. They just need a stronger argument than usual, and the argument belongs
+        in the issue rather than in a surprise pull request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you hitting?
+      description: >
+        Describe the situation, not the solution. The most useful feature requests we've seen start with a
+        workload that doesn't fit rather than an API that's missing.
+      placeholder: |
+        Our cached values are ~40 MB protobuf messages. The mutation guard deep-copies them on every read
+        because they're Serializable but not immutable, which costs more than the cache saves.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: Optional — a clear problem statement is often more useful than a proposed API.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried, or considered?
+      description: >
+        Existing configuration that nearly works is useful to know about — sometimes the answer is a
+        default that should change rather than a feature that should exist.
+      placeholder: |
+        Tried fastcache.mutation-guard: OFF, which fixes the cost but gives up the protection entirely.
+        A per-method opt-out on the annotation would let us be precise about it.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contributing
+    attributes:
+      label: Would you be up for implementing it?
+      options:
+        - "Just raising it — no expectation"
+        - "Maybe, with some direction on the approach"
+        - "Yes, I'd like to send a PR"
+    validations:
+      required: false

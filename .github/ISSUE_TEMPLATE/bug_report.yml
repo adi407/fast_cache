@@ -1,0 +1,126 @@
+name: Bug report
+description: Something behaves incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The diagnostics below exist because almost every FastCache issue is answered
+        by one of them — filling them in will usually save a round trip, and sometimes tells you the answer
+        before you finish.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      options:
+        - Python — "@fastcache" decorator
+        - Python — direct API (get/put/delete)
+        - Java — "@FastCache" annotation (Spring Boot starter)
+        - Java — ShardedStorageEngine used directly
+        - The sidecar process itself (startup, orphan reaping, crashes)
+        - The management console (:8081)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what you expected instead
+      placeholder: |
+        A cached value came back stale after the TTL expired.
+        I expected a miss and a fresh call.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >
+        The smallest code that shows the problem. A reproduction is worth more than any amount of
+        description — if you can get it down to a dozen lines, that alone often identifies the cause.
+      render: python
+      placeholder: |
+        import fastcache_ai as fc
+        from fastcache_ai import fastcache
+
+        @fastcache(ttl="1s")
+        def f(x):
+            return x * 2
+
+        f(1)
+        time.sleep(2)
+        f(1)   # expected a recompute, got the cached value
+    validations:
+      required: true
+
+  - type: textarea
+    id: info
+    attributes:
+      label: Output of `fastcache_ai.info()`
+      description: >
+        This one field answers most questions: version, whether a sidecar was found or started, which
+        codecs are available, and any startup error. Safe to paste — it contains no keys or cached values,
+        only a host and port.
+      render: text
+      placeholder: |
+        python -c "import fastcache_ai, json; print(json.dumps(fastcache_ai.info(), indent=2, default=str))"
+    validations:
+      required: false
+
+  - type: textarea
+    id: stats
+    attributes:
+      label: Output of `fastcache_ai.stats()`
+      description: >
+        Engine, L1 and client counters. Particularly useful for anything about hit rates, evictions,
+        memory pressure or shard skew. Contains counts only — no keys and no cached data.
+      render: text
+      placeholder: |
+        python -c "import fastcache_ai, json; print(json.dumps(fastcache_ai.stats(), indent=2))"
+    validations:
+      required: false
+
+  - type: textarea
+    id: sidecar-log
+    attributes:
+      label: Sidecar log
+      description: >
+        `~/.fastcache/sidecar.log` (or `%USERPROFILE%\.fastcache\sidecar.log`). If the engine refused to
+        start, misbehaved, or reaped itself, the reason is almost certainly the last few lines here. The
+        last ~50 lines is usually plenty.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: FastCache, Python, Java and OS.
+      placeholder: "fastcache-ai 1.1.0, Python 3.12.4, Temurin 21.0.4, Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: textarea
+    id: spring
+    attributes:
+      label: Spring specifics
+      description: >
+        Only if you're using the `@FastCache` annotation. The annotation as written, the return type of the
+        cached method, and any FastCache warnings in your application log — the mutation guard and the SpEL
+        parameter-name check both warn once and then silently change behaviour, so those lines matter.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the sidecar log, or explained why I couldn't
+        - label: >
+            I've read the known limits in the README — single-node, non-durable, unauthenticated, and
+            values may be served up to `stale-grace` (2s) past their TTL by design

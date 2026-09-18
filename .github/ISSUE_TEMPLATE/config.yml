@@ -1,0 +1,15 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Design notes — why is it built this way?
+    url: https://github.com/adi407/fast_cache/blob/main/ARCHITECTURE.md
+    about: >
+      Most "this looks wrong" questions are answered in §5, which records every edge case and what the
+      mitigation costs. Worth a look before filing.
+  - name: Contributing guide
+    url: https://github.com/adi407/fast_cache/blob/main/CONTRIBUTING.md
+    about: How to build, run the tests, and which house rules a reviewer will actually push back on.
+  - name: Security vulnerability
+    url: https://github.com/adi407/fast_cache/security/advisories/new
+    about: >
+      Please report privately rather than in a public issue. The protocol and console are unauthenticated
+      and loopback-bound by design — that is documented, not a vulnerability.

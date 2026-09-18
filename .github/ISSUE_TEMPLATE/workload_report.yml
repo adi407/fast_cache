@@ -1,0 +1,73 @@
+name: Workload report
+description: Numbers from your traffic — especially if they contradict ours
+labels: ["workload-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the most useful thing you can file.**
+
+        Every measurement in the README comes from a workload we designed and committed as
+        `examples/demo_workload.py`. It is deliberately cache-friendly, and its 99.3% hit rate follows
+        directly from that. Traffic with no repeats would show a hit rate near zero and the cache would be
+        pure overhead.
+
+        A report showing FastCache performing badly on your traffic is worth more to us than another
+        passing test. We would rather document a real limit than leave a flattering number unqualified.
+
+  - type: textarea
+    id: workload
+    attributes:
+      label: What the workload looks like
+      description: >
+        Rough shape is fine. Request rate, how repetitive the keys are, typical and largest payload size,
+        read/write ratio, how many processes share the cache.
+      placeholder: |
+        RAG pipeline, ~40 req/s sustained.
+        Keys are per-user queries — very little repetition, maybe 5% hit rate.
+        Payloads: 2-8 KB retrieved chunks, occasional 300 KB.
+        4 gunicorn workers on one host.
+    validations:
+      required: true
+
+  - type: textarea
+    id: numbers
+    attributes:
+      label: Output of `fastcache_ai.stats()`
+      description: After the workload has run long enough to be representative.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Did it help?
+      description: >
+        Latency before and after, if you measured it. Memory footprint. Whether you kept it. "We removed it
+        because it made things worse" is a completely legitimate and useful answer.
+      placeholder: |
+        p50 unchanged, p99 down from 800ms to 610ms.
+        Sidecar sat at ~300 MB RSS.
+        Kept it, but turned the L1 off because our keys are never hot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: surprises
+    attributes:
+      label: Anything surprising or annoying
+      description: >
+        Things that behaved unexpectedly, defaults that were wrong for you, configuration you had to hunt
+        for, or documentation that misled you. Rough edges count — they're often easier to fix than
+        performance.
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "fastcache-ai 1.1.0, Python 3.12, Temurin 21, 8 vCPU / 32 GB, Ubuntu 24.04 in Docker"
+    validations:
+      required: true
