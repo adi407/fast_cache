@@ -165,6 +165,89 @@ class MemoryGuardTest {
         assertFalse(snapshot.rejecting());
     }
 
+    /**
+     * Regression test for the gate-boundary oscillation seen in the 2026-09-18 soak run.
+     *
+     * <p>{@code effectiveRatio()} used to return two different quantities depending on whether the
+     * reservation had crossed {@code physicalGateFloorBytes}: the engine budget ratio below it, the machine
+     * ratio above it. The hysteresis band was applied to that single number, so crossing the floor jumped
+     * the value straight from ~0.06 to ~0.85 without ever passing through 0.78-0.85 and the band never
+     * engaged. Every crossing of the floor therefore flipped the guard, which is exactly the oscillation
+     * the class javadoc promises not to do — the soak log shows "leaving ... at 6%" (the gate floor is
+     * 6.25% of a 1 GiB budget) followed by "entering ... at 85%" one second later, eight times over.
+     */
+    @Test
+    @DisplayName("crossing the physical gate floor repeatedly does not toggle the guard every time")
+    void gateFloorCrossingsDoNotOscillate() {
+        FakeProbe probe = new FakeProbe(0.90); // A host that reads "under pressure" continuously.
+        MemoryGuard guard = new MemoryGuard(1024 * MB, 0.85, 0.78, probe);
+
+        long floor = guard.physicalGateFloorBytes();
+        int transitions = 0;
+        boolean previous = guard.isRejecting();
+
+        // Drive the reservation back and forth across the gate floor, the way the eviction sweeper and
+        // the write path do when the engine is pinned at the boundary.
+        for (int i = 0; i < 200; i++) {
+            guard.release(guard.reservedBytes());
+            guard.tryReserve(floor + MB); // Above the floor: machine pressure now applies.
+            boolean above = guard.isRejecting();
+            if (above != previous) {
+                transitions++;
+                previous = above;
+            }
+
+            guard.release(guard.reservedBytes()); // Below the floor: we are no longer part of the problem.
+            boolean below = guard.isRejecting();
+            if (below != previous) {
+                transitions++;
+                previous = below;
+            }
+        }
+
+        // The bound is generous on purpose: the gate re-arm dwell allows two flips per window, so a slow
+        // or heavily loaded CI box may legitimately see a handful. The defect being guarded against
+        // produces one flip per crossing - 400 of them - so the margin costs nothing in sensitivity.
+        assertTrue(transitions <= 20,
+                "the guard flipped " + transitions + " times across 200 gate-floor crossings; hysteresis "
+                        + "must apply to the gate decision itself, not only to the ratio it selects");
+    }
+
+    /**
+     * The gate hysteresis must not cost us the deliberate exemption it sits on top of: an engine holding
+     * a trivial amount still has to keep serving writes on a host that merely reads busy.
+     */
+    @Test
+    @DisplayName("an engine below the gate floor still accepts writes under machine pressure")
+    void belowTheFloorStillAcceptsUnderMachinePressure() {
+        FakeProbe probe = new FakeProbe(0.99);
+        MemoryGuard guard = new MemoryGuard(1024 * MB, 0.85, 0.78, probe);
+
+        long floor = guard.physicalGateFloorBytes();
+        guard.tryReserve(floor + MB);
+        assertTrue(guard.isRejecting(), "above the floor the host reading applies");
+
+        guard.release(guard.reservedBytes());
+        assertFalse(guard.isRejecting(), "having shed its memory the engine is no longer the cause");
+        assertTrue(guard.tryReserve(MB), "and must be allowed to refill");
+    }
+
+    /** The budget ceiling is measured against the budget, and is unaffected by the gate's own hysteresis. */
+    @Test
+    @DisplayName("budget-driven rejection still clears only below the relief ratio")
+    void budgetRejectionKeepsItsOwnHysteresis() {
+        MemoryGuard guard = new MemoryGuard(1024 * MB, 0.85, 0.78, new FakeProbe(0.10));
+
+        guard.tryReserve(900 * MB);
+        assertTrue(guard.isRejecting(), "88% of the budget is past the reject ratio");
+
+        guard.release(60 * MB); // 840 MB - 82%, still above relief.
+        assertTrue(guard.isRejecting());
+
+        guard.release(100 * MB); // 740 MB - 72%, below relief.
+        assertFalse(guard.isRejecting());
+    }
+
     @Test
     @DisplayName("rejects an invalid configuration at construction")
     void validatesConfiguration() {
