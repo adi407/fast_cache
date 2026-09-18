@@ -250,7 +250,8 @@ Honest caveats, because you will hit them otherwise:
   process-group signalling, SIGKILL orphan reaping) are covered there &mdash; development happened on
   Windows, and the Linux/macOS runs are what makes those paths verified rather than merely written.
 - **Single-node, non-durable, unauthenticated.** The protocol and the console bind to loopback and have no
-  auth. Do not expose either.
+  auth. Do not expose either. On a host with multiple untrusted local users, any of them can reach the
+  sidecar over loopback and read the whole cache — see [SECURITY.md](SECURITY.md).
 - **The savings figure is an estimate**, with the assumptions listed above.
 - **Not yet run under sustained production load.** Correctness is tested on every push; multi-day soak
   behaviour, memory fragmentation over weeks and real traffic shapes are not.

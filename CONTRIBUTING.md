@@ -157,8 +157,8 @@ reaching either registry.
 
 ## Security
 
-Please don't open a public issue for a vulnerability — use
-[GitHub's private advisory form](https://github.com/adi407/fast_cache/security/advisories/new).
+Please don't open a public issue for a vulnerability — see [SECURITY.md](SECURITY.md), which covers the
+threat model, what is in scope, and how to report privately.
 
 Two things that are documented behaviour rather than vulnerabilities: the wire protocol and the management
 console are **unauthenticated and bind to loopback only**, and the Python client will **unpickle** values
