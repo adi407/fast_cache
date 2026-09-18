@@ -7,3 +7,4 @@ python/fastcache_ai/_bin/
 python/dist/
 python/build/
 examples/.fastcache-demo/
+examples/.fastcache-soak/
