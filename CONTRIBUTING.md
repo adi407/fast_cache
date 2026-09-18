@@ -166,6 +166,12 @@ it finds in the cache. Both are safe under the intended deployment — a local s
 process's data — and both are unsafe if you point a client at a host you don't control. Reports that
 FastCache is insecure when deliberately exposed will be closed with a pointer to this paragraph.
 
+## Code of conduct
+
+Participation is governed by the [Contributor Covenant](CODE_OF_CONDUCT.md). In practice it asks for the
+same thing this guide does: argue about the code, not the person, and assume the other party has a reason
+you haven't heard yet.
+
 ## Licence
 
 By contributing you agree your work is licensed under [Apache 2.0](LICENSE), same as the project.
