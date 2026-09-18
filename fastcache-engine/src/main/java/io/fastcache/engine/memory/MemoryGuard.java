@@ -26,6 +26,17 @@ import java.util.concurrent.locks.ReentrantLock;
  * below {@code reliefRatio} (default 0.78). That hysteresis stops the engine oscillating between accepting
  * and rejecting on every sample while the sweeper is still draining.
  *
+ * <p><b>The hysteresis is applied per ceiling, and the gate has a band of its own.</b> The two ceilings
+ * measure different quantities &mdash; a fraction of <em>our</em> budget and a fraction of <em>the
+ * machine</em> &mdash; so a single band across whichever one happens to be selected is not hysteresis at
+ * all. Rejecting on machine pressure at 0.85 and then relieving because the reservation fell under the
+ * gate floor, where the reading switches to a budget ratio of 0.06, skips the 0.78-0.85 band entirely and
+ * flips the guard on every crossing of the floor. So each ceiling keeps its own reject/relief state
+ * against its own reading, and the gate itself engages at {@link #physicalGateFloorBytes} but does not
+ * disengage until the reservation falls below {@code physicalGateReleaseBytes}, after which it stays
+ * disarmed for {@link #GATE_REARM_NANOS} so a cache that has just shed its memory gets a window to refill
+ * instead of chattering at the boundary.
+ *
  * <p><b>No {@code synchronized}.</b> Sampling the OS bean is a syscall; it is guarded by a
  * {@link ReentrantLock} acquired with {@code tryLock}, so a virtual thread never blocks (let alone pins a
  * carrier) to read a number another thread is already refreshing.
@@ -37,6 +48,25 @@ public final class MemoryGuard {
     /** 4 Hz sampling: the MXBean call is a syscall and is not free under 10k writes/sec. */
     private static final long SAMPLE_INTERVAL_NANOS = 250_000_000L;
 
+    /**
+     * How long the physical gate stays disarmed after the reservation drops below its release floor.
+     *
+     * <p>The gate's own reject/relief band stops the chatter of a reservation hovering exactly at the
+     * floor, but a band alone cannot bound the flip rate of a cache that genuinely drains and refills: it
+     * only widens the excursion needed to flip. The dwell is what turns "flips once per crossing" into
+     * "flips at most twice per dwell".
+     *
+     * <p>It is deliberately short, because it is a real hole in the machine ceiling: while the gate is
+     * disarmed the engine may grow, and how far it grows depends on the write rate rather than on
+     * anything this class controls. Two seconds is a few tens of MB at the write rates this engine is
+     * built for, which keeps the post-relief plateau near the gate floor where it belongs, while still
+     * collapsing the second-by-second flapping seen in the soak logs. The budget ceiling still applies
+     * throughout, and {@code ShardedStorageEngine.beginWrite} still catches a failed native allocation,
+     * so the window is bounded rather than unguarded. Lengthening it trades a lower flip rate for a
+     * proportionally larger cache excursion &mdash; a bad trade past a few seconds.
+     */
+    private static final long GATE_REARM_NANOS = 2_000_000_000L;
+
     private final long budgetBytes;
     private final double rejectRatio;
     private final double reliefRatio;
@@ -47,6 +77,16 @@ public final class MemoryGuard {
      * that a genuinely large cache is still held accountable for the host.
      */
     private final long physicalGateFloorBytes;
+
+    /**
+     * Reservation at which the gate lets go again, at 75% of the floor it engages on. The gap is the
+     * gate's own hysteresis band: it is what stops a reservation sitting on the floor from arming and
+     * disarming machine pressure on alternate writes.
+     */
+    private final long physicalGateReleaseBytes;
+
+    /** Which ceiling put us in rejecting mode, and therefore which reading has to recover to get out. */
+    private enum RejectionSource { NONE, BUDGET, PHYSICAL }
 
     private final AtomicLong reserved = new AtomicLong();
     private final AtomicLong highWaterMark = new AtomicLong();
@@ -67,6 +107,18 @@ public final class MemoryGuard {
     private final AtomicLong lastSampleNanos;
     private volatile double physicalRatio;
     private volatile boolean rejecting;
+    private volatile RejectionSource rejectionSource = RejectionSource.NONE;
+
+    /** Whether machine pressure currently counts against this engine. Updated only by {@link #isRejecting()}. */
+    private volatile boolean physicalGateEngaged;
+
+    /**
+     * When the gate last disengaged, for the {@link #GATE_REARM_NANOS} dwell. Seeded one full dwell in the
+     * past rather than at zero, for the same reason {@link #lastSampleNanos} is seeded from the clock:
+     * {@code nanoTime()} has an arbitrary origin and may be negative, so a zero sentinel would leave the
+     * gate either permanently disarmed or armed depending on which way the JVM's origin happened to fall.
+     */
+    private final AtomicLong gateDisengagedNanos;
 
     private final PhysicalMemoryProbe probe;
 
@@ -85,9 +137,11 @@ public final class MemoryGuard {
         this.rejectRatio = rejectRatio;
         this.reliefRatio = reliefRatio;
         this.physicalGateFloorBytes = Math.max(64L * 1024 * 1024, (long) (budgetBytes * 0.05));
+        this.physicalGateReleaseBytes = (long) (this.physicalGateFloorBytes * 0.75);
         this.probe = probe;
         this.physicalRatio = probe.usedRatio();
         this.lastSampleNanos = new AtomicLong(System.nanoTime());
+        this.gateDisengagedNanos = new AtomicLong(System.nanoTime() - GATE_REARM_NANOS);
     }
 
     /**
@@ -155,29 +209,106 @@ public final class MemoryGuard {
      */
     private double effectiveRatio() {
         double budget = budgetRatio();
-        if (reserved.get() < physicalGateFloorBytes) {
+        if (!physicalGateEngaged) {
             return budget;
         }
         return Math.max(budget, refreshPhysicalRatio());
     }
 
-    /** @return true when the engine is currently refusing writes. */
-    public boolean isRejecting() {
-        double effective = effectiveRatio();
-        boolean current = rejecting;
-        if (!current && effective >= rejectRatio) {
-            rejecting = true;
-            LOG.warn("FastCache entering write-rejection mode at {0}% memory utilisation.",
-                    Math.round(effective * 100));
-            return true;
-        }
-        if (current && effective <= reliefRatio) {
-            rejecting = false;
-            LOG.info("FastCache leaving write-rejection mode at {0}% memory utilisation.",
-                    Math.round(effective * 100));
+    /**
+     * Arms or disarms the machine-pressure ceiling, with hysteresis and a dwell.
+     *
+     * <p>Engaging and disengaging on the same number would make the gate flip on alternate writes for a
+     * reservation sitting at the floor; because the two sides of the gate report different quantities,
+     * each of those flips is a full swing of the effective ratio and so a full swing of the guard. The
+     * band plus {@link #GATE_REARM_NANOS} bounds that: the reservation has to fall a quarter below the
+     * floor to let go, and cannot re-arm the ceiling until the dwell has passed.
+     *
+     * @return whether machine pressure counts against this engine right now
+     */
+    private boolean updatePhysicalGate(long held) {
+        if (physicalGateEngaged) {
+            if (held >= physicalGateReleaseBytes) {
+                return true;
+            }
+            physicalGateEngaged = false;
+            gateDisengagedNanos.set(System.nanoTime());
             return false;
         }
-        return current;
+        if (held < physicalGateFloorBytes) {
+            return false;
+        }
+        if (System.nanoTime() - gateDisengagedNanos.get() < GATE_REARM_NANOS) {
+            return false;
+        }
+        physicalGateEngaged = true;
+        return true;
+    }
+
+    /**
+     * @return true when the engine is currently refusing writes.
+     *
+     * <p>Each ceiling is tested against its own reading, with its own reject/relief band, and the reason
+     * we are rejecting is remembered so that relief is judged on the same quantity the rejection was.
+     * Sharing one band across whichever reading the gate happened to select is what defeated the
+     * hysteresis: the value moved between the two ceilings rather than within one of them.
+     */
+    public boolean isRejecting() {
+        long held = reserved.get();
+        double budget = (double) held / (double) budgetBytes;
+        boolean gate = updatePhysicalGate(held);
+        boolean current = rejecting;
+        RejectionSource source = rejectionSource;
+
+        // A ceiling already holding us rejects until its own reading falls to the relief ratio; one that
+        // is not, only once its own reading reaches the reject ratio.
+        boolean budgetRejects = current && source == RejectionSource.BUDGET
+                ? budget > reliefRatio
+                : budget >= rejectRatio;
+
+        double physical = gate ? refreshPhysicalRatio() : 0.0;
+        boolean physicalRejects = gate && (current && source == RejectionSource.PHYSICAL
+                ? physical > reliefRatio
+                : physical >= rejectRatio);
+
+        RejectionSource next;
+        if (current && source == RejectionSource.PHYSICAL && physicalRejects) {
+            next = RejectionSource.PHYSICAL; // Keep measuring against the reading we rejected on.
+        } else if (budgetRejects) {
+            next = RejectionSource.BUDGET;
+        } else if (physicalRejects) {
+            next = RejectionSource.PHYSICAL;
+        } else {
+            next = RejectionSource.NONE;
+        }
+
+        boolean rejectNow = next != RejectionSource.NONE;
+        if (rejectNow == current) {
+            rejectionSource = next; // The reason can change without the decision changing.
+            return current;
+        }
+
+        rejecting = rejectNow;
+        rejectionSource = next;
+        if (rejectNow) {
+            double ratio = next == RejectionSource.BUDGET ? budget : physical;
+            LOG.warn("FastCache entering write-rejection mode at {0}% memory utilisation ({1}).",
+                    Math.round(ratio * 100), reasonFor(next));
+        } else {
+            // Naming what recovered matters: a machine-pressure rejection that clears because the engine
+            // shed its way below the gate floor used to be logged as "leaving ... at 6%", a budget figure
+            // that had nothing to do with why the guard let go.
+            String why = source == RejectionSource.PHYSICAL && !gate
+                    ? "engine below the gate floor"
+                    : "utilisation back under the relief ratio";
+            LOG.info("FastCache leaving write-rejection mode at {0}% memory utilisation ({1}).",
+                    Math.round(effectiveRatio() * 100), why);
+        }
+        return rejectNow;
+    }
+
+    private static String reasonFor(RejectionSource source) {
+        return source == RejectionSource.BUDGET ? "engine budget" : "machine pressure";
     }
 
     public MemoryPressure snapshot() {
