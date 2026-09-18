@@ -143,8 +143,30 @@ final class Dashboard {
                     <div class="bar-label"><span>JVM heap</span><b id="heap-txt">&mdash;</b></div>
                     <div class="track"><div class="fill" id="heap-bar" style="width:0%"></div></div>
                   </div>
+                  <div class="bar">
+                    <div class="bar-label"><span>Process CPU</span><b id="cpu-txt">&mdash;</b></div>
+                    <div class="track"><div class="fill" id="cpu-bar" style="width:0%"></div></div>
+                  </div>
                   <div class="sub" style="margin-top:14px">
                     Payloads live off-heap, so heap stays flat no matter how large the cache grows.
+                  </div>
+                </div>
+
+                <div class="card span">
+                  <h2>Latency &amp; runtime</h2>
+                  <div class="stats">
+                    <div class="stat"><b id="l-get-p50">&mdash;</b><span>get p50</span></div>
+                    <div class="stat"><b id="l-get-p99">&mdash;</b><span>get p99</span></div>
+                    <div class="stat"><b id="l-put-p50">&mdash;</b><span>put p50</span></div>
+                    <div class="stat"><b id="l-put-p99">&mdash;</b><span>put p99</span></div>
+                    <div class="stat"><b id="r-syscpu">&mdash;</b><span>system CPU</span></div>
+                    <div class="stat"><b id="r-gc">0</b><span>GC collections</span></div>
+                    <div class="stat"><b id="r-gctime">0 ms</b><span>GC total pause</span></div>
+                    <div class="stat"><b id="r-threads">0</b><span>platform threads</span></div>
+                  </div>
+                  <div class="sub">
+                    Percentiles are bucket-interpolated. Platform threads exclude virtual threads &mdash;
+                    that count staying flat while connections climb is the point of the design.
                   </div>
                 </div>
 
@@ -170,6 +192,7 @@ final class Dashboard {
               <footer>
                 Savings are an estimate: characters &divide; 4 as an input-token proxy, priced at the
                 selected model's published input rate. Output tokens are not counted. Read-only console.
+                Scrape <code>/metrics/prometheus</code> for these numbers in your own monitoring.
               </footer>
             </div>
 
@@ -193,7 +216,9 @@ final class Dashboard {
               // Thresholds mirror the engine's own 0.85 rejection ratio, so the bar turns red at exactly
               // the point writes start being shed rather than at an arbitrary design choice.
               fill.className = 'fill ' + (clamped >= 0.85 ? 'bad' : clamped >= 0.70 ? 'warn' : 'good');
-              $(id + '-txt').textContent = bytes(used) + ' / ' + bytes(total) + '  (' + pct(clamped) + ')';
+              if (total > 0) {
+                $(id + '-txt').textContent = bytes(used) + ' / ' + bytes(total) + '  (' + pct(clamped) + ')';
+              }
             }
 
             // Eased toward the server's reported value; never above it.
@@ -219,6 +244,28 @@ final class Dashboard {
               bar('sys', m.memory.system_used_ratio, m.memory.system_used_bytes, m.memory.system_total_bytes);
               bar('off', m.memory.offheap_used_ratio, m.memory.offheap_reserved_bytes, m.memory.offheap_budget_bytes);
               bar('heap', m.memory.heap_used_ratio, m.memory.heap_used_bytes, m.memory.heap_max_bytes);
+
+              const ms = v => (v === undefined || v === null) ? '—'
+                : (v < 1 ? v.toFixed(2) + ' ms' : v.toFixed(1) + ' ms');
+              const lat = m.latency || {};
+              $('l-get-p50').textContent = ms(lat.get && lat.get.p50_ms);
+              $('l-get-p99').textContent = ms(lat.get && lat.get.p99_ms);
+              $('l-put-p50').textContent = ms(lat.put && lat.put.p50_ms);
+              $('l-put-p99').textContent = ms(lat.put && lat.put.p99_ms);
+
+              const rt = m.runtime || {};
+              // -1 is the JVM's "not yet sampled", not zero. Showing a dash is honest; showing 0% is not.
+              const cpuRatio = rt.process_cpu_ratio;
+              if (cpuRatio >= 0) {
+                bar('cpu', cpuRatio, 0, 0);
+                $('cpu-txt').textContent = pct(cpuRatio) + ' of ' + (rt.available_processors || '?') + ' cores';
+              } else {
+                $('cpu-txt').textContent = 'not yet sampled';
+              }
+              $('r-syscpu').textContent = rt.system_cpu_ratio >= 0 ? pct(rt.system_cpu_ratio) : '—';
+              $('r-gc').textContent = num(rt.gc_collections || 0);
+              $('r-gctime').textContent = num(rt.gc_time_ms || 0) + ' ms';
+              $('r-threads').textContent = num(rt.platform_threads || 0);
 
               $('t-req').textContent = num(m.cache.total_requests);
               $('t-hit').textContent = num(m.cache.hits);

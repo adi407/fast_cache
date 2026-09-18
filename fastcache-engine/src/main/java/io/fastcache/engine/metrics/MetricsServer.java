@@ -32,7 +32,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <h2>Endpoints</h2>
  * <ul>
  *   <li>{@code /dashboard} — the single-page HTML console (also served at {@code /}).</li>
- *   <li>{@code /metrics} — the same data as JSON, for scraping or scripting.</li>
+ *   <li>{@code /metrics} — the same data as JSON, for scripting.</li>
+ *   <li>{@code /metrics/prometheus} — the Prometheus text exposition format, so these numbers land in
+ *       whatever monitoring a team already runs rather than needing this page to be watched.</li>
  *   <li>{@code /health} — liveness, for supervisors.</li>
  * </ul>
  * Both data endpoints accept {@code ?model=gpt-4o|claude-3-5-sonnet|<name>:<usd>} to re-price the savings
@@ -84,6 +86,9 @@ public final class MetricsServer implements AutoCloseable {
         httpServer.createContext("/", new PageHandler());
         httpServer.createContext("/dashboard", new PageHandler());
         httpServer.createContext("/metrics", new JsonHandler());
+        // Prometheus scrapes this. Kept on its own path rather than content-negotiated on /metrics so a
+        // scrape config is a URL and not a header argument.
+        httpServer.createContext("/metrics/prometheus", new PrometheusHandler());
         httpServer.createContext("/health", new HealthHandler());
 
         // Virtual threads: a dashboard left open in a browser tab polling every second must not hold a
@@ -109,7 +114,31 @@ public final class MetricsServer implements AutoCloseable {
     /** Captures the current metrics under a given price profile. Exposed for tests and embedding. */
     public MetricsSnapshot snapshot(CostProfile profile) {
         return MetricsSnapshot.capture(engine.stats(), engine.savingsLedger(), profile,
-                startedAtMillis, version);
+                startedAtMillis, version, renderLatency());
+    }
+
+    /** Percentiles for every instrumented operation, as a JSON object the dashboard can read directly. */
+    private String renderLatency() {
+        StringBuilder json = new StringBuilder(256).append('{');
+        LatencyHistogram[] histograms = {engine.getLatency(), engine.putLatency(), engine.deleteLatency()};
+        for (int i = 0; i < histograms.length; i++) {
+            LatencyHistogram histogram = histograms[i];
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append('"').append(histogram.name()).append("\":{")
+                    .append("\"count\":").append(histogram.count()).append(',')
+                    .append("\"mean_ms\":").append(fixed(histogram.meanMillis())).append(',')
+                    .append("\"p50_ms\":").append(fixed(histogram.percentileMillis(0.50))).append(',')
+                    .append("\"p95_ms\":").append(fixed(histogram.percentileMillis(0.95))).append(',')
+                    .append("\"p99_ms\":").append(fixed(histogram.percentileMillis(0.99)))
+                    .append('}');
+        }
+        return json.append('}').toString();
+    }
+
+    private static String fixed(double value) {
+        return String.format(java.util.Locale.ROOT, "%.4f", Double.isFinite(value) ? value : 0.0);
     }
 
     @Override
@@ -156,6 +185,18 @@ public final class MetricsServer implements AutoCloseable {
             }
             respond(exchange, 200, "text/html; charset=utf-8",
                     Dashboard.render(snapshot(profileFor(exchange))));
+        }
+    }
+
+    private final class PrometheusHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!guardGet(exchange)) {
+                return;
+            }
+            // The 0.0.4 content type is what Prometheus expects; without it some scrapers refuse the body.
+            respond(exchange, 200, "text/plain; version=0.0.4; charset=utf-8",
+                    PrometheusExporter.render(engine, snapshot(profileFor(exchange))));
         }
     }
 

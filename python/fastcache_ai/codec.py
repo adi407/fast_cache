@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import pickle
+import threading
 import zlib
 from typing import Any, Optional, Tuple
 
@@ -83,7 +84,7 @@ def _best_compressor() -> int:
 class Codec:
     """Stateless encoder/decoder. Cheap to construct; one instance per client is plenty."""
 
-    __slots__ = ("min_compress_bytes", "compression", "_zstd_compressor", "_zstd_decompressor")
+    __slots__ = ("min_compress_bytes", "compression", "_local")
 
     def __init__(
         self,
@@ -92,10 +93,34 @@ class Codec:
     ) -> None:
         self.min_compress_bytes = min_compress_bytes
         self.compression = _best_compressor() if compression is None else compression
-        # Reusing one zstd context avoids re-initialising the compression tables per call, which at
-        # 50 MB payloads is a measurable fraction of total encode time.
-        self._zstd_compressor = _zstd.ZstdCompressor(level=3) if _zstd is not None else None
-        self._zstd_decompressor = _zstd.ZstdDecompressor() if _zstd is not None else None
+        # Reusing a zstd context avoids re-initialising the compression tables per call, which at 50 MB
+        # payloads is a measurable fraction of encode time. But a ZstdCompressor is NOT thread-safe:
+        # sharing one across threads and calling compress() concurrently is a hard interpreter crash
+        # (SIGSEGV), not an exception. One client is shared process-wide and every web server is
+        # multi-threaded, so the contexts are kept thread-local - the reuse benefit without the crash.
+        self._local = threading.local()
+
+    @property
+    def _zstd_compressor(self):
+        """This thread's compressor, created on first use."""
+        if _zstd is None:
+            return None
+        compressor = getattr(self._local, "compressor", None)
+        if compressor is None:
+            compressor = _zstd.ZstdCompressor(level=3)
+            self._local.compressor = compressor
+        return compressor
+
+    @property
+    def _zstd_decompressor(self):
+        """This thread's decompressor, created on first use."""
+        if _zstd is None:
+            return None
+        decompressor = getattr(self._local, "decompressor", None)
+        if decompressor is None:
+            decompressor = _zstd.ZstdDecompressor()
+            self._local.decompressor = decompressor
+        return decompressor
 
     # -- encode -----------------------------------------------------------------------------------
 

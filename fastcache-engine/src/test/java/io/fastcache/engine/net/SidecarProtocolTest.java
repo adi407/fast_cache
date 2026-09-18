@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -357,6 +358,91 @@ class SidecarProtocolTest {
         assertEquals(405, connection.getResponseCode(),
                 "no request shape may mutate cache state through the metrics port");
         connection.disconnect();
+    }
+
+    @Test
+    @DisplayName("/metrics/prometheus is valid exposition format")
+    void prometheusEndpoint() throws IOException {
+        try (Client client = new Client(port)) {
+            client.send(Protocol.OP_PUT, "k", "value".getBytes(StandardCharsets.UTF_8), (byte) 1, 60_000, 5);
+            client.send(Protocol.OP_GET, "k");
+            client.send(Protocol.OP_GET, "absent");
+        }
+
+        String body = httpGet("/metrics/prometheus");
+
+        // Every metric needs HELP and TYPE before its first sample, or a scraper rejects it.
+        assertTrue(body.contains("# HELP fastcache_cache_hits_total"), body.substring(0, 200));
+        assertTrue(body.contains("# TYPE fastcache_cache_hits_total counter"));
+        assertTrue(body.contains("# TYPE fastcache_operation_duration_seconds histogram"));
+
+        assertTrue(body.contains("fastcache_process_cpu_ratio"), "CPU must be exported");
+        assertTrue(body.contains("fastcache_gc_collections_total"), "GC must be exported");
+        assertTrue(body.contains("fastcache_platform_threads"), "thread count must be exported");
+        assertTrue(body.contains("fastcache_memory_offheap_reserved_bytes"));
+        assertTrue(body.contains("fastcache_herd_suppressed_total"));
+        assertTrue(body.contains("shard=\"0\""), "per-shard series must be labelled");
+
+        for (String line : body.split("\n")) {
+            if (!line.startsWith("#") && line.contains(",")) {
+                String value = line.substring(line.lastIndexOf(' ') + 1);
+                assertFalse(value.contains(","),
+                        "locale-dependent number formatting leaked into: " + line);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("histogram buckets are cumulative and +Inf equals the count")
+    void prometheusHistogramIsWellFormed() throws IOException {
+        try (Client client = new Client(port)) {
+            for (int i = 0; i < 25; i++) {
+                client.send(Protocol.OP_GET, "k" + i);
+            }
+        }
+
+        String prefix = "fastcache_operation_duration_seconds_bucket{operation=\"get\",le=";
+        long previous = -1;
+        long infinity = -1;
+        long declaredCount = -1;
+        int buckets = 0;
+
+        for (String line : httpGet("/metrics/prometheus").split("\n")) {
+            line = line.trim();
+            if (line.startsWith(prefix)) {
+                long value = Long.parseLong(line.substring(line.lastIndexOf(' ') + 1));
+                assertTrue(value >= previous,
+                        "buckets must be cumulative: " + value + " followed " + previous);
+                previous = value;
+                buckets++;
+                if (line.contains("+Inf")) {
+                    infinity = value;
+                }
+            } else if (line.startsWith("fastcache_operation_duration_seconds_count{operation=\"get\"}")) {
+                declaredCount = Long.parseLong(line.substring(line.lastIndexOf(' ') + 1));
+            }
+        }
+
+        assertTrue(buckets > 5, "expected a full bucket ladder, found " + buckets);
+        assertEquals(declaredCount, infinity, "the +Inf bucket must equal _count");
+    }
+
+    @Test
+    @DisplayName("latency percentiles appear in the JSON for the dashboard")
+    void latencyInJson() throws IOException {
+        try (Client client = new Client(port)) {
+            for (int i = 0; i < 10; i++) {
+                client.send(Protocol.OP_PUT, "lat" + i, new byte[128], (byte) 0, 60_000, 0);
+                client.send(Protocol.OP_GET, "lat" + i);
+            }
+        }
+
+        String json = httpGet("/metrics");
+        assertTrue(json.contains("\"latency\""), json.substring(0, Math.min(300, json.length())));
+        assertTrue(json.contains("\"p99_ms\""));
+        assertTrue(json.contains("\"runtime\""));
+        assertTrue(json.contains("\"process_cpu_ratio\""));
+        assertTrue(json.contains("\"gc_collections\""));
     }
 
     @Test

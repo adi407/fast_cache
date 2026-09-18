@@ -3,6 +3,7 @@ package io.fastcache.engine.core;
 import io.fastcache.engine.memory.MemoryGuard;
 import io.fastcache.engine.memory.MemoryPressure;
 import io.fastcache.engine.memory.OffHeapAllocator;
+import io.fastcache.engine.metrics.LatencyHistogram;
 import io.fastcache.engine.metrics.SavingsLedger;
 import io.fastcache.engine.util.FastCacheLog;
 import io.fastcache.engine.util.TimeSpec;
@@ -45,6 +46,13 @@ public final class ShardedStorageEngine implements PayloadReleaser, AutoCloseabl
     private final EvictionSweeper sweeper;
     private final RefreshCoordinator refreshCoordinator;
     private final SavingsLedger savingsLedger = new SavingsLedger();
+
+    // Server-side operation latency. One nanoTime pair per call (~25ns) plus an allocation-free bucket
+    // increment: cheap enough to leave on permanently, which matters because latency you only measure
+    // when you suspect a problem is latency you find out about too late.
+    private final LatencyHistogram getLatency = new LatencyHistogram("get");
+    private final LatencyHistogram putLatency = new LatencyHistogram("put");
+    private final LatencyHistogram deleteLatency = new LatencyHistogram("delete");
     private final AtomicBoolean closed = new AtomicBoolean();
 
     public ShardedStorageEngine() {
@@ -141,6 +149,20 @@ public final class ShardedStorageEngine implements PayloadReleaser, AutoCloseabl
         return savingsLedger;
     }
 
+    /** Read-path latency, in the engine itself — excludes socket transfer. */
+    public LatencyHistogram getLatency() {
+        return getLatency;
+    }
+
+    /** Write-path latency, measured from admission control through publication. */
+    public LatencyHistogram putLatency() {
+        return putLatency;
+    }
+
+    public LatencyHistogram deleteLatency() {
+        return deleteLatency;
+    }
+
     // ---------------------------------------------------------------------------------------------------
     // Zero-copy write path (used by the socket server)
     // ---------------------------------------------------------------------------------------------------
@@ -207,13 +229,18 @@ public final class ShardedStorageEngine implements PayloadReleaser, AutoCloseabl
             abortWrite(ticket);
             return WriteStatus.REJECTED_SHUTDOWN;
         }
-        CachePayload payload =
-                CachePayload.OffHeap.owned(ticket.slot(), ticket.capacity(), flags, sourceCharacters);
-        CacheEntry entry = CacheEntry.create(key, payload, effectiveTtl(ttlMillis),
-                config.staleGraceMillis(), System.currentTimeMillis());
-        shardFor(key).put(entry);
-        savingsLedger.recordStore(sourceCharacters);
-        return WriteStatus.ACCEPTED;
+        long started = System.nanoTime();
+        try {
+            CachePayload payload =
+                    CachePayload.OffHeap.owned(ticket.slot(), ticket.capacity(), flags, sourceCharacters);
+            CacheEntry entry = CacheEntry.create(key, payload, effectiveTtl(ttlMillis),
+                    config.staleGraceMillis(), System.currentTimeMillis());
+            shardFor(key).put(entry);
+            savingsLedger.recordStore(sourceCharacters);
+            return WriteStatus.ACCEPTED;
+        } finally {
+            putLatency.record(System.nanoTime() - started);
+        }
     }
 
     /** Discards an unpublished ticket, freeing the slot and returning its budget. */
@@ -268,12 +295,17 @@ public final class ShardedStorageEngine implements PayloadReleaser, AutoCloseabl
         if (closed.get()) {
             return WriteStatus.REJECTED_SHUTDOWN;
         }
-        CachePayload payload = CachePayload.Reference.of(value);
-        CacheEntry entry = CacheEntry.create(key, payload, effectiveTtl(ttlMillis),
-                config.staleGraceMillis(), System.currentTimeMillis());
-        shardFor(key).put(entry);
-        savingsLedger.recordStore(payload.sourceCharacters());
-        return WriteStatus.ACCEPTED;
+        long started = System.nanoTime();
+        try {
+            CachePayload payload = CachePayload.Reference.of(value);
+            CacheEntry entry = CacheEntry.create(key, payload, effectiveTtl(ttlMillis),
+                    config.staleGraceMillis(), System.currentTimeMillis());
+            shardFor(key).put(entry);
+            savingsLedger.recordStore(payload.sourceCharacters());
+            return WriteStatus.ACCEPTED;
+        } finally {
+            putLatency.record(System.nanoTime() - started);
+        }
     }
 
     // ---------------------------------------------------------------------------------------------------
@@ -289,13 +321,20 @@ public final class ShardedStorageEngine implements PayloadReleaser, AutoCloseabl
         if (key == null || closed.get()) {
             return null;
         }
-        CacheEntry entry = shardFor(key).acquire(key, System.currentTimeMillis());
-        if (entry == null) {
-            return null;
+        long started = System.nanoTime();
+        try {
+            CacheEntry entry = shardFor(key).acquire(key, System.currentTimeMillis());
+            if (entry == null) {
+                return null;
+            }
+            // One choke point for cost accounting: every read path in both runtimes funnels through here.
+            savingsLedger.recordServe(entry.payload().sourceCharacters());
+            return new Lease(entry, this);
+        } finally {
+            // Misses are timed too. A cache whose misses are slow is a cache that has a problem, and
+            // timing only hits would hide exactly that.
+            getLatency.record(System.nanoTime() - started);
         }
-        // One choke point for cost accounting: every read path in both runtimes funnels through here.
-        savingsLedger.recordServe(entry.payload().sourceCharacters());
-        return new Lease(entry, this);
     }
 
     /**
@@ -383,7 +422,15 @@ public final class ShardedStorageEngine implements PayloadReleaser, AutoCloseabl
     }
 
     public boolean delete(String key) {
-        return key != null && shardFor(key).remove(key);
+        if (key == null) {
+            return false;
+        }
+        long started = System.nanoTime();
+        try {
+            return shardFor(key).remove(key);
+        } finally {
+            deleteLatency.record(System.nanoTime() - started);
+        }
     }
 
     public long flush() {

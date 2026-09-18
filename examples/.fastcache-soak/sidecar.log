@@ -1,0 +1,148 @@
+Sept 18, 2026 11:22:20 AM io.fastcache.engine.util.FastCacheLog warn
+WARNING: FastCache entering write-rejection mode at 85% memory utilisation.
+Sept 18, 2026 11:22:20 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 417 entries.
+Sept 18, 2026 11:22:21 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 365 entries.
+Sept 18, 2026 11:22:22 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 328 entries.
+Sept 18, 2026 11:22:23 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 295 entries.
+Sept 18, 2026 11:22:24 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 267 entries.
+Sept 18, 2026 11:22:25 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 243 entries.
+Sept 18, 2026 11:22:26 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 218 entries.
+Sept 18, 2026 11:22:27 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 196 entries.
+Sept 18, 2026 11:22:28 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 175 entries.
+Sept 18, 2026 11:22:30 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 156 entries.
+Sept 18, 2026 11:22:31 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 137 entries.
+Sept 18, 2026 11:22:32 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 129 entries.
+Sept 18, 2026 11:22:33 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 117 entries.
+Sept 18, 2026 11:22:34 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 103 entries.
+Sept 18, 2026 11:22:35 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 99 entries.
+Sept 18, 2026 11:22:36 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 89 entries.
+Sept 18, 2026 11:22:37 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 74 entries.
+Sept 18, 2026 11:22:38 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 70 entries.
+Sept 18, 2026 11:22:39 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache leaving write-rejection mode at 6% memory utilisation.
+Sept 18, 2026 11:22:39 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 68 entries.
+Sept 18, 2026 11:22:57 AM io.fastcache.engine.util.FastCacheLog warn
+WARNING: FastCache entering write-rejection mode at 85% memory utilisation.
+Sept 18, 2026 11:22:57 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 234 entries.
+Sept 18, 2026 11:22:58 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 208 entries.
+Sept 18, 2026 11:22:59 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 184 entries.
+Sept 18, 2026 11:23:00 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 166 entries.
+Sept 18, 2026 11:23:01 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 152 entries.
+Sept 18, 2026 11:23:02 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 135 entries.
+Sept 18, 2026 11:23:03 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 120 entries.
+Sept 18, 2026 11:23:04 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 109 entries.
+Sept 18, 2026 11:23:05 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 97 entries.
+Sept 18, 2026 11:23:06 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 87 entries.
+Sept 18, 2026 11:23:07 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 78 entries.
+Sept 18, 2026 11:23:08 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 71 entries.
+Sept 18, 2026 11:23:09 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 66 entries.
+Sept 18, 2026 11:23:10 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 62 entries.
+Sept 18, 2026 11:23:11 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 53 entries.
+Sept 18, 2026 11:23:12 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache leaving write-rejection mode at 6% memory utilisation.
+Sept 18, 2026 11:23:12 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 43 entries.
+Sept 18, 2026 11:23:16 AM io.fastcache.engine.util.FastCacheLog warn
+WARNING: FastCache entering write-rejection mode at 85% memory utilisation.
+Sept 18, 2026 11:23:17 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 112 entries.
+Sept 18, 2026 11:23:18 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 98 entries.
+Sept 18, 2026 11:23:19 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 91 entries.
+Sept 18, 2026 11:23:20 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 76 entries.
+Sept 18, 2026 11:23:21 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 71 entries.
+Sept 18, 2026 11:23:22 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 66 entries.
+Sept 18, 2026 11:23:23 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 57 entries.
+Sept 18, 2026 11:23:24 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 49 entries.
+Sept 18, 2026 11:23:25 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 41 entries.
+Sept 18, 2026 11:23:26 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache leaving write-rejection mode at 6% memory utilisation.
+Sept 18, 2026 11:23:26 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 36 entries.
+Sept 18, 2026 11:23:33 AM io.fastcache.engine.util.FastCacheLog warn
+WARNING: FastCache entering write-rejection mode at 85% memory utilisation.
+Sept 18, 2026 11:23:33 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 135 entries.
+Sept 18, 2026 11:23:34 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 122 entries.
+Sept 18, 2026 11:23:35 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 112 entries.
+Sept 18, 2026 11:23:37 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 100 entries.
+Sept 18, 2026 11:23:38 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 91 entries.
+Sept 18, 2026 11:23:39 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 79 entries.
+Sept 18, 2026 11:23:40 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 70 entries.
+Sept 18, 2026 11:23:41 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 66 entries.
+Sept 18, 2026 11:23:42 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 60 entries.
+Sept 18, 2026 11:23:43 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 52 entries.
+Sept 18, 2026 11:23:44 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 43 entries.
+Sept 18, 2026 11:23:45 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 36 entries.
+Sept 18, 2026 11:23:46 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 34 entries.
+Sept 18, 2026 11:23:47 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 32 entries.
+Sept 18, 2026 11:23:47 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache leaving write-rejection mode at 6% memory utilisation.
+Sept 18, 2026 11:23:48 AM io.fastcache.engine.util.FastCacheLog warn
+WARNING: FastCache entering write-rejection mode at 85% memory utilisation.
+Sept 18, 2026 11:23:49 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 55 entries.
+Sept 18, 2026 11:23:50 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 47 entries.
+Sept 18, 2026 11:23:51 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 40 entries.
+Sept 18, 2026 11:23:52 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 39 entries.
+Sept 18, 2026 11:23:53 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache leaving write-rejection mode at 6% memory utilisation.
+Sept 18, 2026 11:23:53 AM io.fastcache.engine.util.FastCacheLog info
+INFO: Pressure sweep reclaimed 33 entries.

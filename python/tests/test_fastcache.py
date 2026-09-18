@@ -158,6 +158,63 @@ def test_compressible_payload_is_compressed():
     assert codec.decode(payload, flags) == "a" * (64 * 1024)
 
 
+def test_codec_is_thread_safe_on_large_payloads():
+    """Regression: a shared zstd context crashed the interpreter, not the test.
+
+    `zstandard.ZstdCompressor` is not thread-safe. The Codec reused one instance for speed, and one
+    Codec is shared process-wide by the default client - so any multi-threaded application caching
+    values above `min_compress_bytes` could segfault with no traceback and no exception.
+
+    It went unnoticed because the existing concurrency test used small dict values that never crossed
+    the compression threshold. This one deliberately exceeds it, and would take the whole interpreter
+    down on the old code rather than failing an assertion.
+    """
+    codec = Codec()
+    payload = "context window " * 40_000        # ~600 KB, well past the 8 KB threshold
+    failures = []
+
+    def hammer():
+        try:
+            for _ in range(15):
+                blob, flags, characters = codec.encode(payload)
+                assert codec.decode(blob, flags) == payload
+                assert characters == len(payload)
+        except Exception as exc:  # noqa: BLE001
+            failures.append(exc)
+
+    workers = [threading.Thread(target=hammer) for _ in range(8)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=120)
+
+    assert not failures, f"concurrent codec use failed: {failures[:2]}"
+    assert all(not w.is_alive() for w in workers), "a codec thread hung"
+
+
+def test_concurrent_large_writes_through_the_client():
+    """The same hazard via the public API, which is how a real application would hit it."""
+    payload = "x" * 200_000
+    errors = []
+
+    def writer(index):
+        try:
+            for i in range(10):
+                key = f"big:{index}:{i}"
+                fastcache.put(key, payload)
+                assert fastcache.get(key) == payload
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=writer, args=(n,)) for n in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=120)
+
+    assert not errors, f"concurrent large writes failed: {errors[:2]}"
+
+
 # ---------------------------------------------------------------------------------------------------
 # L1 hot-key cache
 # ---------------------------------------------------------------------------------------------------

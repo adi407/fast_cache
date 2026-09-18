@@ -32,10 +32,25 @@ public record MetricsSnapshot(
         long offHeapBudgetBytes,
         long l1Hits,
         long l1Characters,
-        int connectedClients) {
+        int connectedClients,
+        double processCpuRatio,
+        double systemCpuRatio,
+        long gcCollections,
+        long gcTimeMillis,
+        int platformThreads,
+        String latencyJson) {
 
     public static MetricsSnapshot capture(EngineStats engine, SavingsLedger ledger, CostProfile profile,
                                           long startedAtMillis, String version) {
+        return capture(engine, ledger, profile, startedAtMillis, version, "{}");
+    }
+
+    /**
+     * @param latencyJson pre-rendered percentile object; the histograms live on the engine, which this
+     *                    record deliberately does not hold a reference to so a snapshot stays a snapshot
+     */
+    public static MetricsSnapshot capture(EngineStats engine, SavingsLedger ledger, CostProfile profile,
+                                          long startedAtMillis, String version, String latencyJson) {
         return new MetricsSnapshot(
                 System.currentTimeMillis(),
                 System.currentTimeMillis() - startedAtMillis,
@@ -52,7 +67,13 @@ public record MetricsSnapshot(
                 engine.memory().budgetBytes(),
                 ledger.l1Hits(),
                 ledger.l1Characters(),
-                ledger.connectedClients());
+                ledger.connectedClients(),
+                RuntimeMetrics.processCpuLoad(),
+                RuntimeMetrics.systemCpuLoad(),
+                RuntimeMetrics.gcCollectionCount(),
+                RuntimeMetrics.gcCollectionTimeMillis(),
+                RuntimeMetrics.platformThreadCount(),
+                latencyJson == null || latencyJson.isBlank() ? "{}" : latencyJson);
     }
 
     public double systemUsedRatio() {
@@ -104,6 +125,15 @@ public record MetricsSnapshot(
         json.append("\"rejecting_writes\":").append(engine.memory().rejecting());
         json.append("},");
 
+        json.append("\"runtime\":{");
+        field(json, "process_cpu_ratio", processCpuRatio).append(',');
+        field(json, "system_cpu_ratio", systemCpuRatio).append(',');
+        field(json, "gc_collections", gcCollections).append(',');
+        field(json, "gc_time_ms", gcTimeMillis).append(',');
+        field(json, "platform_threads", platformThreads).append(',');
+        field(json, "available_processors", RuntimeMetrics.availableProcessors());
+        json.append("},");
+
         json.append("\"cache\":{");
         field(json, "shards", engine.shardCount()).append(',');
         field(json, "entries", engine.entries()).append(',');
@@ -144,6 +174,8 @@ public record MetricsSnapshot(
         field(json, "saved_usd", savings.savedUsd()).append(',');
         field(json, "savings_ratio", savings.savingsRatio());
         json.append("},");
+
+        json.append("\"latency\":").append(latencyJson).append(',');
 
         json.append("\"shards\":[");
         for (int i = 0; i < engine.shards().size(); i++) {
