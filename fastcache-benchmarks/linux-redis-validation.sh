@@ -22,6 +22,16 @@ mkdir -p "${OUT}"
 command -v redis-server >/dev/null || { echo "redis-server not found" >&2; exit 1; }
 command -v java >/dev/null || { echo "java not found" >&2; exit 1; }
 
+# Caffeine is the benchmark's only hard third-party dependency and it is not a dependency of the product,
+# so a clean machine will not have it cached. Fetch it rather than failing several minutes into a run.
+CAFFEINE_VERSION="${CAFFEINE_VERSION:-3.2.2}"
+CAFFEINE_JAR="${HOME}/.m2/repository/com/github/ben-manes/caffeine/caffeine/${CAFFEINE_VERSION}/caffeine-${CAFFEINE_VERSION}.jar"
+if [ ! -f "${CAFFEINE_JAR}" ]; then
+  echo "fetching caffeine ${CAFFEINE_VERSION} into the local repository..."
+  mvn -B -q dependency:get -Dartifact="com.github.ben-manes.caffeine:caffeine:${CAFFEINE_VERSION}" \
+    || { echo "could not resolve caffeine" >&2; exit 1; }
+fi
+
 # ---------------------------------------------------------------------------------------------------
 # Environment record. A benchmark result without the machine that produced it is an anecdote.
 # ---------------------------------------------------------------------------------------------------
@@ -64,7 +74,7 @@ appendonly no
 proto-max-bulk-len 512mb
 
 # Bounded LRU cache semantics, matching Caffeine's maximumWeight and FastCache's budget.
-maxmemory 4gb
+maxmemory 2gb
 maxmemory-policy allkeys-lru
 
 # Left at defaults deliberately: io-threads is varied by the second configuration below rather than
@@ -105,7 +115,7 @@ run() {  # run <csv-name> <extra args...>
   local name="$1"; shift
   echo
   echo "=== ${name} ==="
-  BENCH_JVM_FLAGS="${BENCH_JVM_FLAGS:--Xmx4g -XX:MaxDirectMemorySize=6g}" \
+  BENCH_JVM_FLAGS="${BENCH_JVM_FLAGS:--Xmx3g -XX:MaxDirectMemorySize=4g}" \
     "${ROOT}/fastcache-benchmarks/run.sh" \
       --redis-port "${REDIS_PORT}" --redis-pid "${REDIS_PID}" \
       --csv "${OUT}/${name}.csv" "$@" 2>&1 | grep -v 'INFO:\|FastCacheLog\|^[A-Z][a-z][a-z] [0-9]'
@@ -118,19 +128,28 @@ run() {  # run <csv-name> <extra args...>
 start_redis 1
 
 # Phase 4 - GET across payload sizes and concurrency levels.
-for conc in 1 8 32; do
-  run "linux-get-conc${conc}" --scenario B \
-      --implementation caffeine,fastcache-sidecar,redis \
-      --payload-size 256k,1m,10m,25m,50m --target 512m --budget 4g \
-      --operations 600 --concurrency "${conc}" --repeat 3 --reject-ratio 1.0
-done
+#
+# Sizes are trimmed as concurrency rises. At 32 concurrent clients a 50 MB payload means up to 1.6 GB of
+# transient arrays live on the benchmark heap at once; running that would measure an allocation cliff
+# rather than either cache. The trim is applied identically to every arm.
+run "linux-get-conc1"  --scenario B --implementation caffeine,fastcache-sidecar,redis \
+    --payload-size 256k,1m,10m,25m,50m --target 512m --budget 2g \
+    --operations 400 --concurrency 1 --repeat 3 --reject-ratio 1.0
+
+run "linux-get-conc8"  --scenario B --implementation caffeine,fastcache-sidecar,redis \
+    --payload-size 256k,1m,10m,25m,50m --target 512m --budget 2g \
+    --operations 400 --concurrency 8 --repeat 3 --reject-ratio 1.0
+
+run "linux-get-conc32" --scenario B --implementation caffeine,fastcache-sidecar,redis \
+    --payload-size 256k,1m,10m --target 512m --budget 2g \
+    --operations 400 --concurrency 32 --repeat 3 --reject-ratio 1.0
 
 # Phase 5 - SET, read-heavy and balanced mixes, with GET and SET timed separately.
 for ratio in 0.0 0.5 0.9; do
   run "linux-mixed-r${ratio}" --scenario M \
       --implementation fastcache-sidecar,redis \
-      --payload-size 1m,10m,25m --target 512m --budget 4g \
-      --operations 600 --concurrency 8 --repeat 3 --read-ratio "${ratio}" --reject-ratio 1.0
+      --payload-size 1m,10m,25m --target 512m --budget 2g \
+      --operations 400 --concurrency 8 --repeat 3 --read-ratio "${ratio}" --reject-ratio 1.0
 done
 
 stop_redis
@@ -141,8 +160,8 @@ stop_redis
 start_redis 4
 run "linux-get-iothreads4-conc8" --scenario B \
     --implementation fastcache-sidecar,redis \
-    --payload-size 1m,10m,25m --target 512m --budget 4g \
-    --operations 600 --concurrency 8 --repeat 3 --reject-ratio 1.0
+    --payload-size 1m,10m,25m --target 512m --budget 2g \
+    --operations 400 --concurrency 8 --repeat 3 --reject-ratio 1.0
 stop_redis
 
 echo

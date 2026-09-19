@@ -4,8 +4,8 @@ name: Linux Redis validation
 #
 # The comparison this repository already has was measured against Memurai on Windows (WinSock IOCP),
 # which is not the platform Redis is optimised for. This workflow exists to confirm or kill that result
-# on Linux with epoll. It is manual-dispatch only: it is an experiment, not CI, and it should not run on
-# every push.
+# on Linux with epoll. It is an experiment, not CI: it runs only on its own branch or by manual
+# dispatch, never on main and never on an ordinary push.
 
 on:
   # Scoped to this branch only. workflow_dispatch cannot be triggered until the file reaches the default
@@ -65,6 +65,10 @@ jobs:
       - name: Build engine and starter
         run: mvn -B -q package -DskipTests
 
+      - name: Resolve the benchmark's Caffeine dependency
+        # Caffeine is the baseline arm, not a product dependency, so a clean runner has no copy cached.
+        run: mvn -B -q dependency:get -Dartifact=com.github.ben-manes.caffeine:caffeine:3.2.2
+
       - name: Record runner environment
         run: |
           echo "::group::environment"
@@ -80,7 +84,7 @@ jobs:
           chmod +x fastcache-benchmarks/run.sh fastcache-benchmarks/linux-redis-validation.sh
           ./fastcache-benchmarks/linux-redis-validation.sh "${GITHUB_WORKSPACE}/validation-results"
         env:
-          BENCH_JVM_FLAGS: "-Xmx4g -XX:MaxDirectMemorySize=6g"
+          BENCH_JVM_FLAGS: "-Xmx3g -XX:MaxDirectMemorySize=4g"
 
       - name: Summarise
         if: always()
