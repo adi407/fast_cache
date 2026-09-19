@@ -8,6 +8,15 @@ name: Linux Redis validation
 # every push.
 
 on:
+  # Scoped to this branch only. workflow_dispatch cannot be triggered until the file reaches the default
+  # branch, so a branch-scoped push trigger is what makes the experiment runnable before any merge. It
+  # deliberately cannot fire on main or on any other branch.
+  push:
+    branches:
+      - claude/linux-redis-validation
+    paths:
+      - 'fastcache-benchmarks/**'
+      - '.github/workflows/linux-redis-validation.yml'
   workflow_dispatch:
     inputs:
       payload_sizes:
