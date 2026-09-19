@@ -1,0 +1,17 @@
+timestamp            : 2026-09-19T19:20:41+00:00
+distro               : Ubuntu 24.04.5 LTS
+kernel               : Linux 6.17.0-1022-azure x86_64 GNU/Linux
+cpu model            : AMD EPYC 7763 64-Core Processor
+cpu cores            : 4
+ram total            : 15.6 GB
+ram available        : 14.6 GB
+redis-server         : Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=e53ff17674aa6190
+java                 : openjdk version "21.0.12.1" 2026-08-18 LTS
+maven                : Apache Maven 3.9.16 (2bdd9fddda4b155ebf8000e807eb73fd829a51d5)
+fastcache commit     : 388cea3
+fastcache dirty      : 3 modified path(s)
+transparent hugepages: [always] madvise never
+cpu governor         : unknown
+loopback mtu         : 65536
+net.core.rmem_max    : 1048576
+net.core.wmem_max    : 212992
