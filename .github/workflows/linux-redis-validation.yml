@@ -1,0 +1,115 @@
+name: Linux Redis validation
+
+# Runs the FastCache-vs-Redis head-to-head on native Linux with native Redis.
+#
+# The comparison this repository already has was measured against Memurai on Windows (WinSock IOCP),
+# which is not the platform Redis is optimised for. This workflow exists to confirm or kill that result
+# on Linux with epoll. It is manual-dispatch only: it is an experiment, not CI, and it should not run on
+# every push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      payload_sizes:
+        description: "Payload sizes for the GET sweep"
+        default: "256k,1m,10m,25m,50m"
+        required: false
+      operations:
+        description: "Operations per cell"
+        default: "600"
+        required: false
+      repeat:
+        description: "Independent runs per configuration"
+        default: "3"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: FastCache vs native Redis (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Install native Redis
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          # The distro package installs and starts a system service on 6379. The benchmark runs its own
+          # instance on 6399 with a config committed alongside the results, so the packaged service is
+          # stopped to keep it from competing for CPU and page cache.
+          sudo systemctl stop redis-server || true
+          sudo systemctl disable redis-server || true
+          redis-server --version
+
+      - name: Build engine and starter
+        run: mvn -B -q package -DskipTests
+
+      - name: Record runner environment
+        run: |
+          echo "::group::environment"
+          uname -srmo
+          nproc
+          free -h
+          awk -F': ' '/model name/{print $2; exit}' /proc/cpuinfo
+          cat /sys/kernel/mm/transparent_hugepage/enabled || true
+          echo "::endgroup::"
+
+      - name: Run validation
+        run: |
+          chmod +x fastcache-benchmarks/run.sh fastcache-benchmarks/linux-redis-validation.sh
+          ./fastcache-benchmarks/linux-redis-validation.sh "${GITHUB_WORKSPACE}/validation-results"
+        env:
+          BENCH_JVM_FLAGS: "-Xmx4g -XX:MaxDirectMemorySize=6g"
+
+      - name: Summarise
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import csv, glob, os, statistics
+          from collections import defaultdict
+          out = os.environ.get('GITHUB_STEP_SUMMARY')
+          lines = ["# FastCache vs native Redis — Linux\n"]
+          for path in sorted(glob.glob('validation-results/*.csv')):
+              rows = list(csv.DictReader(open(path)))
+              if not rows:
+                  continue
+              lines.append(f"\n## `{os.path.basename(path)}`\n")
+              cols = [c for c in ('clientP50us','clientP99us','getP50us','setP50us','opsPerSec',
+                                  'throughputOpsPerSec') if c in rows[0]]
+              g = defaultdict(list)
+              for r in rows:
+                  g[(int(r['payloadBytes']), r['arm'])].append(r)
+              lines.append('| payload | arm | ' + ' | '.join(cols) + ' |')
+              lines.append('|---|---|' + '---|' * len(cols))
+              for (size, arm), rs in sorted(g.items()):
+                  lab = f"{size >> 20}MB" if size >= 1 << 20 else f"{size >> 10}KB"
+                  vals = []
+                  for c in cols:
+                      nums = [float(x[c]) for x in rs if x.get(c) not in ('', None)]
+                      vals.append(f"{statistics.fmean(nums):.1f}" if nums else '-')
+                  lines.append(f"| {lab} | {arm} | " + ' | '.join(vals) + ' |')
+          text = '\n'.join(lines)
+          print(text)
+          if out:
+              open(out, 'a').write(text + '\n')
+          PY
+
+      - name: Upload raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-redis-validation-results
+          path: validation-results/
+          retention-days: 30

@@ -8,3 +8,6 @@ python/dist/
 python/build/
 examples/.fastcache-demo/
 examples/.fastcache-soak/
+
+# Redis server extracted for the benchmark head-to-head (binaries + runtime state, not source)
+.redis/
