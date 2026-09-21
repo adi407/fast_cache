@@ -62,15 +62,26 @@ jobs:
       - name: Build engine
         run: mvn -B -q package -DskipTests
 
-      - name: Resolve the benchmark's Caffeine dependency
-        # Caffeine is the in-process baseline arm, not a product dependency, so a clean runner has no
-        # copy cached.
-        run: mvn -B -q dependency:get -Dartifact=com.github.ben-manes.caffeine:caffeine:3.2.2
-
-      - name: Build the end-to-end harness
+      - name: Resolve the experiment's dependencies
+        # The e2e harness runs a real Spring Boot service, and fastcache-e2e is deliberately not a module
+        # of the product reactor, so `mvn package` above does not pull its Spring, Tomcat or Caffeine
+        # jars. A clean runner has none of them cached; run.sh compiles against ~/.m2 directly.
+        env:
+          # run.sh defaults to micrometer 1.15.6, which happened to be in the author's local repository.
+          # Boot 3.3.4 manages 1.13.4, so that is what go-offline fetches and what the build must ask
+          # for. Only the stable observation types are touched, so the version is not load-bearing.
+          MICROMETER_VERSION: '1.13.4'
         run: |
           chmod +x fastcache-e2e/run.sh fastcache-e2e/final-10mib.sh
-          ./fastcache-e2e/run.sh build
+          ./fastcache-e2e/run.sh resolve
+          mvn -B -q dependency:get -Dartifact=com.github.ben-manes.caffeine:caffeine:3.2.2
+          mvn -B -q dependency:get -Dartifact=io.micrometer:micrometer-observation:1.13.4
+          mvn -B -q dependency:get -Dartifact=io.micrometer:micrometer-commons:1.13.4
+
+      - name: Build the end-to-end harness
+        env:
+          MICROMETER_VERSION: '1.13.4'
+        run: ./fastcache-e2e/run.sh build
 
       - name: Record runner environment
         run: |
@@ -98,6 +109,7 @@ jobs:
           DURATION_SECONDS: ${{ github.event.inputs.duration_seconds || '45' }}
           WARMUP_SECONDS: '20'
           HEAP: '4g'
+          MICROMETER_VERSION: '1.13.4'
         run: ./fastcache-e2e/final-10mib.sh "${GITHUB_WORKSPACE}/final-results"
 
       - name: Summarise
