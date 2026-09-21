@@ -1,0 +1,115 @@
+name: Final 10 MiB end-to-end validation
+
+# The single experiment that decides the narrow large-value product thesis.
+#
+#   Does FastCache's measured large-value transport/bandwidth advantage over native Redis survive an
+#   end-to-end JVM application workload at 10 MiB values?
+#
+# Deliberately ONE cell family: 10 MiB, 51 entries, 8 concurrent clients, 100% GET, 3 repetitions,
+# four arms. It does not sweep payload sizes, concurrency or write ratios. Do not add cells to it.
+#
+# Run here rather than on a developer machine for two reasons, both of which voided a previous attempt:
+# native Redis on Linux is the only Redis worth comparing against, and a runner is a clean host with
+# nothing else competing for memory.
+
+on:
+  push:
+    branches:
+      - claude/linux-redis-validation
+    paths:
+      - 'fastcache-e2e/**'
+      - '.github/workflows/final-10mib-e2e.yml'
+  workflow_dispatch:
+    inputs:
+      repeats:
+        description: "Independent repetitions per arm"
+        default: "3"
+        required: false
+      duration_seconds:
+        description: "Measured window per cell, seconds"
+        default: "45"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: 10 MiB end-to-end (ubuntu-latest, native Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Install native Redis
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          # The distro package starts a service on 6379. This experiment runs its own instance on 6399
+          # with a committed config, so the packaged one is stopped to keep it off the CPU and page cache.
+          sudo systemctl stop redis-server || true
+          sudo systemctl disable redis-server || true
+          redis-server --version
+
+      - name: Build engine
+        run: mvn -B -q package -DskipTests
+
+      - name: Resolve the benchmark's Caffeine dependency
+        # Caffeine is the in-process baseline arm, not a product dependency, so a clean runner has no
+        # copy cached.
+        run: mvn -B -q dependency:get -Dartifact=com.github.ben-manes.caffeine:caffeine:3.2.2
+
+      - name: Build the end-to-end harness
+        run: |
+          chmod +x fastcache-e2e/run.sh fastcache-e2e/final-10mib.sh
+          ./fastcache-e2e/run.sh build
+
+      - name: Record runner environment
+        run: |
+          mkdir -p "${GITHUB_WORKSPACE}/final-results"
+          {
+            echo "timestamp            : $(date -Is)"
+            echo "distro               : $(lsb_release -ds 2>/dev/null || cat /etc/os-release | head -1)"
+            echo "kernel               : $(uname -srmo)"
+            echo "cpu model            : $(awk -F': ' '/model name/{print $2; exit}' /proc/cpuinfo)"
+            echo "cpu cores            : $(nproc)"
+            echo "ram total            : $(awk '/MemTotal/{printf "%.1f GB", $2/1048576}' /proc/meminfo)"
+            echo "ram available        : $(awk '/MemAvailable/{printf "%.1f GB", $2/1048576}' /proc/meminfo)"
+            echo "redis-server         : $(redis-server --version)"
+            echo "java                 : $(java -version 2>&1 | head -1)"
+            echo "fastcache commit     : $(git rev-parse --short HEAD)"
+            echo "transparent hugepages: $(cat /sys/kernel/mm/transparent_hugepage/enabled)"
+            echo "loopback mtu         : $(ip link show lo | awk '/mtu/{print $5}')"
+            echo "net.core.rmem_max    : $(sysctl -n net.core.rmem_max)"
+            echo "net.core.wmem_max    : $(sysctl -n net.core.wmem_max)"
+          } | tee "${GITHUB_WORKSPACE}/final-results/environment.txt"
+
+      - name: Run the experiment
+        env:
+          REPEATS: ${{ github.event.inputs.repeats || '3' }}
+          DURATION_SECONDS: ${{ github.event.inputs.duration_seconds || '45' }}
+          WARMUP_SECONDS: '20'
+          HEAP: '4g'
+        run: ./fastcache-e2e/final-10mib.sh "${GITHUB_WORKSPACE}/final-results"
+
+      - name: Summarise
+        if: always()
+        run: |
+          python3 fastcache-e2e/summarise_final.py "${GITHUB_WORKSPACE}/final-results" \
+            | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-10mib-e2e-results
+          path: final-results/
+          retention-days: 90

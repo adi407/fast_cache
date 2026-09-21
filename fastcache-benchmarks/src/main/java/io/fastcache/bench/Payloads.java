@@ -52,6 +52,33 @@ public final class Payloads {
         return value;
     }
 
+    /**
+     * A deterministic content digest over a strided sample of the payload.
+     *
+     * <p>The seed stamp in {@link #of} only marks the first four bytes, so it detects a swapped entry but
+     * not a body that was truncated, padded or spliced from two sources. This walks the whole array at a
+     * fixed stride and folds length into the result, so a payload that is the right size but the wrong
+     * content, or the right content at the wrong size, both fail.
+     *
+     * <p>Strided rather than full: a payload-sized digest per request would measure the digest. The
+     * stride matches the one {@code consume()} already walks, so the bytes are in cache either way.
+     */
+    public static long digest(byte[] value) {
+        if (value == null) {
+            return 0L;
+        }
+        long hash = 1469598103934665603L ^ value.length;
+        for (int i = 0; i < value.length; i += DIGEST_STRIDE) {
+            hash = (hash ^ (value[i] & 0xFF)) * 1099511628211L;
+        }
+        // The tail is sampled explicitly: a stride that does not divide the length would otherwise leave
+        // the last partial window unchecked, which is exactly where a truncation lands.
+        hash = (hash ^ (value[value.length - 1] & 0xFF)) * 1099511628211L;
+        return hash;
+    }
+
+    private static final int DIGEST_STRIDE = 4096;
+
     /** Reads back the stamp written by {@link #of}, for integrity checks. */
     public static int seedOf(byte[] value) {
         if (value == null || value.length < 4) {

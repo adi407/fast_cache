@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dependency resolution only.
+
+  This is deliberately NOT a module of the parent reactor. The end-to-end experiment must not be able to
+  break, slow, or alter the product build, and the product's published artifacts must not acquire a
+  dependency on Spring Boot's web stack or Caffeine because a benchmark needed them.
+
+  Used as:
+      mvn -f fastcache-e2e/pom.xml dependency:copy-dependencies -DoutputDirectory=target/lib
+
+  which assembles a classpath the run script then compiles and runs against with plain javac/java.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.fastcache</groupId>
+  <artifactId>fastcache-e2e</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+  <name>FastCache end-to-end experiment</name>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Matches the spring.boot.version in the parent pom, so the Spring version the experiment runs
+         against is the one the starter is built for. -->
+    <spring.boot.version>3.3.4</spring.boot.version>
+    <caffeine.version>3.2.2</caffeine.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring.boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <version>${caffeine.version}</version>
+    </dependency>
+  </dependencies>
+</project>
