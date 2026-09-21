@@ -51,14 +51,21 @@ FAILED_CELLS=0
 # ---------------------------------------------------------------------------------------------------
 java_pids() { pgrep -f 'io\.fastcache\.(e2e|engine\.net\.SidecarMain)' 2>/dev/null || true; }
 
+# The sidecar is a long-lived server started once for the whole run, so it is expected to be alive
+# between cells and is not a stray. Anything else carrying FastCache code is: an application JVM that
+# outlived its cell, or a second sidecar, are exactly the two shapes that contaminated the last attempt.
 require_no_stray_jvms() {
-  local stray; stray="$(java_pids)"
+  local phase="$1" stray="" pid
+  for pid in $(java_pids); do
+    [ "${pid}" = "${FC_SIDECAR_PID:-}" ] && continue
+    stray="${stray} ${pid}"
+  done
   if [ -n "${stray}" ]; then
-    note "stray FastCache JVMs still alive:"
+    note "unexpected FastCache JVMs alive:"
     ps -o pid,rss,etime,args -p ${stray} 2>/dev/null | tee -a "${LOG}" || true
-    die "process isolation violated before ${1}"
+    die "process isolation violated ${phase}"
   fi
-  note "process isolation ok (${1}): no FastCache JVMs alive"
+  note "process isolation ok (${phase}): only the expected server processes alive"
 }
 
 # ---------------------------------------------------------------------------------------------------
@@ -144,7 +151,17 @@ start_redis() {
   done
   redis-cli -p "${REDIS_PORT}" ping 2>/dev/null | grep -q PONG || die "redis did not come up"
   require_port_owned_by "${REDIS_PORT}" "${REDIS_PID}" "redis"
-  redis-cli -p "${REDIS_PORT}" info server | grep -E 'redis_version|io_threads' | tee -a "${LOG}" || true
+  redis-cli -p "${REDIS_PORT}" info server | grep -E 'redis_version' | tee -a "${LOG}" || true
+  # Asserted rather than assumed: if the config file did not load, Redis would silently run with
+  # defaults and the comparison would be against a differently-configured server than the one the
+  # microbenchmark used. `io_threads_active` is 0 at idle even when configured, so read the config.
+  local threads maxmem policy
+  threads="$(redis-cli -p "${REDIS_PORT}" config get io-threads | tail -1)"
+  maxmem="$(redis-cli -p "${REDIS_PORT}" config get maxmemory | tail -1)"
+  policy="$(redis-cli -p "${REDIS_PORT}" config get maxmemory-policy | tail -1)"
+  note "redis config: io-threads=${threads} maxmemory=${maxmem} policy=${policy}"
+  [ "${threads}" = "4" ] || die "redis io-threads=${threads}, expected 4 — config file did not load"
+  [ "${policy}" = "allkeys-lru" ] || die "redis policy=${policy}, expected allkeys-lru"
 }
 stop_redis() {
   [ -n "${REDIS_PID}" ] || return 0
