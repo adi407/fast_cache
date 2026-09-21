@@ -1,0 +1,14 @@
+timestamp            : 2026-09-21T06:48:25+00:00
+distro               : Ubuntu 24.04.5 LTS
+kernel               : Linux 6.17.0-1022-azure x86_64 GNU/Linux
+cpu model            : AMD EPYC 7763 64-Core Processor
+cpu cores            : 4
+ram total            : 15.6 GB
+ram available        : 14.6 GB
+redis-server         : Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=e53ff17674aa6190
+java                 : openjdk version "21.0.12.1" 2026-08-18 LTS
+fastcache commit     : 05a48e3
+transparent hugepages: [always] madvise never
+loopback mtu         : 65536
+net.core.rmem_max    : 1048576
+net.core.wmem_max    : 212992

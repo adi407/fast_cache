@@ -1,0 +1,9 @@
+Sept 20, 2026 2:13:19 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache engine online: 32 shards, 2,048 MiB off-heap budget, reject at 100%, deterministic free=true
+Sept 20, 2026 2:13:19 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache sidecar listening on 127.0.0.1:6,380
+FASTCACHE_READY port=6380 pid=11412 shards=32 offheap=2147483648 console=-1 version=1.1.0
+Sept 20, 2026 2:15:13 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache flushed 0 entries.
+Sept 20, 2026 2:17:08 AM io.fastcache.engine.util.FastCacheLog info
+INFO: FastCache flushed 0 entries.

@@ -1,0 +1,136 @@
+
+>>> final 10 MiB end-to-end validation
+    payload      10485760 bytes (10 MiB)
+    entries      51  (working set 510 MiB, identical for every arm)
+    concurrency  8
+    workload     100% GET, write-ratio 0.0
+    repeats      3 per arm, warmed up independently
+    app heap     4g
+    process isolation ok (at start): only the expected server processes alive
+    port 8090 (application) free, confirmed by bind
+    port 6399 (redis) free, confirmed by bind
+    redis: pid 3774 owns port 6399
+redis_version:7.0.15
+    redis config: io-threads=4 maxmemory=2147483648 policy=allkeys-lru
+    port 6380 (fastcache sidecar) free, confirmed by bind
+    sidecar: pid 3816 owns port 6380
+    redis: pid 3774 owns port 6399
+    sidecar: pid 3816 owns port 6380
+
+>>> repetition 1 of 3
+
+>>> cell final-caffeine-10mib-c8-r1
+    port 8090 (application) free, confirmed by bind
+    application (caffeine): pid 3877 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-caffeine-10mib-c8-r1 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.000 requests=486817 errors=0 reqPerSec=10818.1 httpP50us=680.374 httpP95us=1173.828 httpP99us=1628.168 httpMaxus=15922.233 svcP50us=14.206 svcP95us=36.058 svcP99us=137.075 svcMaxus=10727.861 lookupP50us=0.21 lookupP95us=0.351 lookupP99us=0.501 lookupMaxus=977.692 decodeP50us=0.0 decodeP99us=0.0 businessP50us=13.956 hitsObserved=486817 arm=caffeine representation=object payloadBytes=10485760 heapUsed=667474664 heapCommitted=1121976320 oldGenUsed=667474664 nonHeapUsed=52139456 rss=1342459904 externalRss=-1 entries=51 writeRejections=0 hits=486817 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=false decodesOnHit=false gcCollections=40 gcTotalPauseMillis=109.0 gcPauseP95Micros=7000.0 gcPauseP99Micros=20000.0 gcPauseMaxMicros=20000.0 allocatedBytes=7708691200 cellValid=true invalidReason=none 
+    process isolation ok (after final-caffeine-10mib-c8-r1): only the expected server processes alive
+
+>>> cell final-fastcache-embedded-10mib-c8-r1
+    port 8090 (application) free, confirmed by bind
+    application (fastcache-embedded): pid 4089 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-fastcache-embedded-10mib-c8-r1 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.001 requests=487456 errors=0 reqPerSec=10832.2 httpP50us=675.427 httpP95us=1187.402 httpP99us=1677.921 httpMaxus=9099.75 svcP50us=15.378 svcP95us=34.575 svcP99us=144.228 svcMaxus=3800.344 lookupP50us=0.992 lookupP95us=1.422 lookupP99us=1.833 lookupMaxus=1057.186 decodeP50us=0.0 decodeP99us=0.0 businessP50us=14.316 hitsObserved=487456 arm=fastcache-embedded representation=object payloadBytes=10485760 heapUsed=667671736 heapCommitted=1121976320 oldGenUsed=667671736 nonHeapUsed=52323512 rss=1314078720 externalRss=-1 entries=51 writeRejections=0 hits=487456 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=false decodesOnHit=false gcCollections=40 gcTotalPauseMillis=105.0 gcPauseP95Micros=5000.0 gcPauseP99Micros=23000.0 gcPauseMaxMicros=23000.0 allocatedBytes=7894185712 cellValid=true invalidReason=none 
+    process isolation ok (after final-fastcache-embedded-10mib-c8-r1): only the expected server processes alive
+
+>>> cell final-fastcache-sidecar-10mib-c8-r1
+    port 8090 (application) free, confirmed by bind
+    application (fastcache-sidecar): pid 4298 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-fastcache-sidecar-10mib-c8-r1 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.012 requests=15983 errors=0 reqPerSec=355.1 httpP50us=21776.557 httpP95us=34082.711 httpP99us=41353.942 httpMaxus=71180.67 svcP50us=17946.549 svcP95us=28360.743 svcP99us=34881.34 svcMaxus=62788.593 lookupP50us=13091.45 lookupP95us=22123.888 lookupP99us=27559.076 lookupMaxus=43217.864 decodeP50us=3878.875 decodeP99us=14649.722 businessP50us=15.739 hitsObserved=15983 arm=fastcache-sidecar representation=object payloadBytes=10485760 heapUsed=26136032 heapCommitted=104857600 oldGenUsed=26136032 nonHeapUsed=56059160 rss=281206784 externalRss=623349760 entries=51 writeRejections=0 hits=15983 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=true decodesOnHit=true gcCollections=317 gcTotalPauseMillis=741.0 gcPauseP95Micros=4000.0 gcPauseP99Micros=8000.0 gcPauseMaxMicros=30000.0 allocatedBytes=335856492744 cellValid=true invalidReason=none 
+    process isolation ok (after final-fastcache-sidecar-10mib-c8-r1): only the expected server processes alive
+
+>>> cell final-redis-10mib-c8-r1
+    port 8090 (application) free, confirmed by bind
+    application (redis): pid 4517 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-redis-10mib-c8-r1 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.049 requests=5354 errors=0 reqPerSec=118.8 httpP50us=60796.353 httpP95us=97728.067 httpP99us=126694.695 httpMaxus=179741.184 svcP50us=59566.671 svcP95us=96487.744 svcP99us=125174.118 svcMaxus=178890.306 lookupP50us=58241.568 lookupP95us=95382.578 lookupP99us=124105.346 lookupMaxus=177794.254 decodeP50us=1197.191 decodeP99us=4011.929 businessP50us=15.108 hitsObserved=5354 arm=redis representation=object payloadBytes=10485760 heapUsed=26030216 heapCommitted=104857600 oldGenUsed=26030216 nonHeapUsed=55023672 rss=271265792 externalRss=554336256 entries=51 writeRejections=0 hits=5354 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=true decodesOnHit=true gcCollections=76 gcTotalPauseMillis=211.0 gcPauseP95Micros=3000.0 gcPauseP99Micros=20000.0 gcPauseMaxMicros=39000.0 allocatedBytes=112511684136 cellValid=true invalidReason=none 
+    process isolation ok (after final-redis-10mib-c8-r1): only the expected server processes alive
+
+>>> repetition 2 of 3
+
+>>> cell final-fastcache-embedded-10mib-c8-r2
+    port 8090 (application) free, confirmed by bind
+    application (fastcache-embedded): pid 4724 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-fastcache-embedded-10mib-c8-r2 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.000 requests=486091 errors=0 reqPerSec=10801.9 httpP50us=680.323 httpP95us=1181.862 httpP99us=1628.779 httpMaxus=9098.42 svcP50us=18.374 svcP95us=41.317 svcP99us=164.468 svcMaxus=5129.564 lookupP50us=0.992 lookupP95us=1.353 lookupP99us=1.754 lookupMaxus=990.577 decodeP50us=0.0 decodeP99us=0.0 businessP50us=17.332 hitsObserved=486091 arm=fastcache-embedded representation=object payloadBytes=10485760 heapUsed=667669560 heapCommitted=1121976320 oldGenUsed=667669560 nonHeapUsed=52216248 rss=1309421568 externalRss=-1 entries=51 writeRejections=0 hits=486091 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=false decodesOnHit=false gcCollections=39 gcTotalPauseMillis=105.0 gcPauseP95Micros=7000.0 gcPauseP99Micros=21000.0 gcPauseMaxMicros=21000.0 allocatedBytes=7228056808 cellValid=true invalidReason=none 
+    process isolation ok (after final-fastcache-embedded-10mib-c8-r2): only the expected server processes alive
+
+>>> cell final-fastcache-sidecar-10mib-c8-r2
+    port 8090 (application) free, confirmed by bind
+    application (fastcache-sidecar): pid 4931 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-fastcache-sidecar-10mib-c8-r2 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.010 requests=15975 errors=0 reqPerSec=354.9 httpP50us=21664.662 httpP95us=34305.883 httpP99us=42023.592 httpMaxus=68417.321 svcP50us=17784.58 svcP95us=28753.802 svcP99us=35257.76 svcMaxus=65811.635 lookupP50us=13187.479 lookupP95us=23050.688 lookupP99us=29109.636 lookupMaxus=49005.953 decodeP50us=3517.665 decodeP99us=14362.335 businessP50us=17.182 hitsObserved=15975 arm=fastcache-sidecar representation=object payloadBytes=10485760 heapUsed=25978120 heapCommitted=92274688 oldGenUsed=25978120 nonHeapUsed=55950800 rss=280735744 externalRss=645582848 entries=51 writeRejections=0 hits=15975 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=true decodesOnHit=true gcCollections=307 gcTotalPauseMillis=747.0 gcPauseP95Micros=4000.0 gcPauseP99Micros=6000.0 gcPauseMaxMicros=30000.0 allocatedBytes=335690224384 cellValid=true invalidReason=none 
+    process isolation ok (after final-fastcache-sidecar-10mib-c8-r2): only the expected server processes alive
+
+>>> cell final-redis-10mib-c8-r2
+    port 8090 (application) free, confirmed by bind
+    application (redis): pid 5137 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-redis-10mib-c8-r2 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.054 requests=5347 errors=0 reqPerSec=118.7 httpP50us=61419.756 httpP95us=97104.416 httpP99us=124543.747 httpMaxus=203436.425 svcP50us=60209.814 svcP95us=95696.412 svcP99us=123342.697 svcMaxus=201855.315 lookupP50us=58876.824 lookupP95us=94441.554 lookupP99us=122306.578 lookupMaxus=198447.617 decodeP50us=1187.563 decodeP99us=3789.062 businessP50us=15.118 hitsObserved=5347 arm=redis representation=object payloadBytes=10485760 heapUsed=25843448 heapCommitted=92274688 oldGenUsed=25843448 nonHeapUsed=54683776 rss=270950400 externalRss=554369024 entries=51 writeRejections=0 hits=5347 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=true decodesOnHit=true gcCollections=75 gcTotalPauseMillis=213.0 gcPauseP95Micros=3000.0 gcPauseP99Micros=23000.0 gcPauseMaxMicros=42000.0 allocatedBytes=112361189960 cellValid=true invalidReason=none 
+    process isolation ok (after final-redis-10mib-c8-r2): only the expected server processes alive
+
+>>> cell final-caffeine-10mib-c8-r2
+    port 8090 (application) free, confirmed by bind
+    application (caffeine): pid 5332 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-caffeine-10mib-c8-r2 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.000 requests=476860 errors=0 reqPerSec=10596.8 httpP50us=691.263 httpP95us=1205.947 httpP99us=1724.688 httpMaxus=13382.409 svcP50us=13.777 svcP95us=37.98 svcP99us=140.213 svcMaxus=3663.709 lookupP50us=0.221 lookupP95us=0.371 lookupP99us=0.531 lookupMaxus=657.912 decodeP50us=0.0 decodeP99us=0.0 businessP50us=13.525 hitsObserved=476860 arm=caffeine representation=object payloadBytes=10485760 heapUsed=667400728 heapCommitted=1121976320 oldGenUsed=667400728 nonHeapUsed=52098072 rss=1352683520 externalRss=-1 entries=51 writeRejections=0 hits=476860 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=false decodesOnHit=false gcCollections=41 gcTotalPauseMillis=103.0 gcPauseP95Micros=4000.0 gcPauseP99Micros=20000.0 gcPauseMaxMicros=20000.0 allocatedBytes=7447977584 cellValid=true invalidReason=none 
+    process isolation ok (after final-caffeine-10mib-c8-r2): only the expected server processes alive
+
+>>> repetition 3 of 3
+
+>>> cell final-fastcache-sidecar-10mib-c8-r3
+    port 8090 (application) free, confirmed by bind
+    application (fastcache-sidecar): pid 5542 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-fastcache-sidecar-10mib-c8-r3 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.014 requests=15710 errors=0 reqPerSec=349.0 httpP50us=22128.21 httpP95us=34661.483 httpP99us=42390.499 httpMaxus=95248.862 svcP50us=18282.268 svcP95us=29403.101 svcP99us=36615.859 svcMaxus=92463.354 lookupP50us=13360.032 lookupP95us=23350.334 lookupP99us=29167.789 lookupMaxus=57670.616 decodeP50us=3843.749 decodeP99us=14868.763 businessP50us=20.218 hitsObserved=15710 arm=fastcache-sidecar representation=object payloadBytes=10485760 heapUsed=25997904 heapCommitted=104857600 oldGenUsed=25997904 nonHeapUsed=55700120 rss=283643904 externalRss=874659840 entries=51 writeRejections=0 hits=15710 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=true decodesOnHit=true gcCollections=308 gcTotalPauseMillis=754.0 gcPauseP95Micros=4000.0 gcPauseP99Micros=8000.0 gcPauseMaxMicros=33000.0 allocatedBytes=330112408720 cellValid=true invalidReason=none 
+    process isolation ok (after final-fastcache-sidecar-10mib-c8-r3): only the expected server processes alive
+
+>>> cell final-redis-10mib-c8-r3
+    port 8090 (application) free, confirmed by bind
+    application (redis): pid 5750 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-redis-10mib-c8-r3 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.042 requests=5303 errors=0 reqPerSec=117.7 httpP50us=62027.758 httpP95us=98911.806 httpP99us=132865.401 httpMaxus=185904.126 svcP50us=60784.668 svcP95us=97571.629 svcP99us=131764.605 svcMaxus=184920.353 lookupP50us=59379.713 lookupP95us=96172.479 lookupP99us=130612.098 lookupMaxus=183747.439 decodeP50us=1296.646 decodeP99us=4088.82 businessP50us=15.188 hitsObserved=5303 arm=redis representation=object payloadBytes=10485760 heapUsed=25934832 heapCommitted=98566144 oldGenUsed=25934832 nonHeapUsed=54723112 rss=264491008 externalRss=554336256 entries=51 writeRejections=0 hits=5303 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=true decodesOnHit=true gcCollections=73 gcTotalPauseMillis=197.0 gcPauseP95Micros=3000.0 gcPauseP99Micros=23000.0 gcPauseMaxMicros=31000.0 allocatedBytes=111440241736 cellValid=true invalidReason=none 
+    process isolation ok (after final-redis-10mib-c8-r3): only the expected server processes alive
+
+>>> cell final-caffeine-10mib-c8-r3
+    port 8090 (application) free, confirmed by bind
+    application (caffeine): pid 5945 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-caffeine-10mib-c8-r3 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.000 requests=479077 errors=0 reqPerSec=10646.1 httpP50us=689.049 httpP95us=1200.536 httpP99us=1692.144 httpMaxus=12418.808 svcP50us=18.084 svcP95us=39.423 svcP99us=165.541 svcMaxus=3670.148 lookupP50us=0.221 lookupP95us=0.36 lookupP99us=0.501 lookupMaxus=1332.626 decodeP50us=0.0 decodeP99us=0.0 businessP50us=17.833 hitsObserved=479077 arm=caffeine representation=object payloadBytes=10485760 heapUsed=667327824 heapCommitted=1121976320 oldGenUsed=667327824 nonHeapUsed=52139344 rss=1308139520 externalRss=-1 entries=51 writeRejections=0 hits=479077 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=false decodesOnHit=false gcCollections=38 gcTotalPauseMillis=103.0 gcPauseP95Micros=5000.0 gcPauseP99Micros=21000.0 gcPauseMaxMicros=21000.0 allocatedBytes=7666453992 cellValid=true invalidReason=none 
+    process isolation ok (after final-caffeine-10mib-c8-r3): only the expected server processes alive
+
+>>> cell final-fastcache-embedded-10mib-c8-r3
+    port 8090 (application) free, confirmed by bind
+    application (fastcache-embedded): pid 6147 owns port 8090
+INTEGRITY pre-fill ok entries=0 payloadBytes=10485760
+INTEGRITY post-fill ok entries=51 payloadBytes=10485760
+RESULT label=final-fastcache-embedded-10mib-c8-r3 concurrency=8 writeRatio=0.0 durationSeconds=45 measuredSeconds=45.001 requests=487870 errors=0 reqPerSec=10841.4 httpP50us=675.515 httpP95us=1178.202 httpP99us=1643.075 httpMaxus=16125.879 svcP50us=15.499 svcP95us=34.744 svcP99us=140.884 svcMaxus=6045.618 lookupP50us=0.982 lookupP95us=1.383 lookupP99us=1.854 lookupMaxus=3552.891 decodeP50us=0.0 decodeP99us=0.0 businessP50us=14.458 hitsObserved=487870 arm=fastcache-embedded representation=object payloadBytes=10485760 heapUsed=667724648 heapCommitted=1121976320 oldGenUsed=667724648 nonHeapUsed=52582248 rss=1279967232 externalRss=-1 entries=51 writeRejections=0 hits=487870 misses=0 loaderRuns=0 corrupt=0 corruptReason=none hitRatio=1.0 cachesOffHeap=false decodesOnHit=false gcCollections=40 gcTotalPauseMillis=107.0 gcPauseP95Micros=5000.0 gcPauseP99Micros=21000.0 gcPauseMaxMicros=21000.0 allocatedBytes=7618566288 cellValid=true invalidReason=none 
+    process isolation ok (after final-fastcache-embedded-10mib-c8-r3): only the expected server processes alive
+
+>>> done — 0 failed cell(s)
+    results -> /home/runner/work/fast_cache/fast_cache/final-results/final-10mib.csv
+label                                 concurrency  writeRatio  durationSeconds  measuredSeconds  requests  errors  reqPerSec  httpP50us  httpP95us  httpP99us   httpMaxus   svcP50us   svcP95us   svcP99
+final-caffeine-10mib-c8-r1            8            0.0         45               45.000           486817    0       10818.1    680.374    1173.828   1628.168    15922.233   14.206     36.058     137.07
+final-fastcache-embedded-10mib-c8-r1  8            0.0         45               45.001           487456    0       10832.2    675.427    1187.402   1677.921    9099.75     15.378     34.575     144.22
+final-fastcache-sidecar-10mib-c8-r1   8            0.0         45               45.012           15983     0       355.1      21776.557  34082.711  41353.942   71180.67    17946.549  28360.743  34881.
+final-redis-10mib-c8-r1               8            0.0         45               45.049           5354      0       118.8      60796.353  97728.067  126694.695  179741.184  59566.671  96487.744  125174
+final-fastcache-embedded-10mib-c8-r2  8            0.0         45               45.000           486091    0       10801.9    680.323    1181.862   1628.779    9098.42     18.374     41.317     164.46
+final-fastcache-sidecar-10mib-c8-r2   8            0.0         45               45.010           15975     0       354.9      21664.662  34305.883  42023.592   68417.321   17784.58   28753.802  35257.
+final-redis-10mib-c8-r2               8            0.0         45               45.054           5347      0       118.7      61419.756  97104.416  124543.747  203436.425  60209.814  95696.412  123342
+final-caffeine-10mib-c8-r2            8            0.0         45               45.000           476860    0       10596.8    691.263    1205.947   1724.688    13382.409   13.777     37.98      140.21
+final-fastcache-sidecar-10mib-c8-r3   8            0.0         45               45.014           15710     0       349.0      22128.21   34661.483  42390.499   95248.862   18282.268  29403.101  36615.
+final-redis-10mib-c8-r3               8            0.0         45               45.042           5303      0       117.7      62027.758  98911.806  132865.401  185904.126  60784.668  97571.629  131764
+final-caffeine-10mib-c8-r3            8            0.0         45               45.000           479077    0       10646.1    689.049    1200.536   1692.144    12418.808   18.084     39.423     165.54
+final-fastcache-embedded-10mib-c8-r3  8            0.0         45               45.001           487870    0       10841.4    675.515    1178.202   1643.075    16125.879   15.499     34.744     140.88

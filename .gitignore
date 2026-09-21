@@ -11,3 +11,11 @@ examples/.fastcache-soak/
 
 # Redis server extracted for the benchmark head-to-head (binaries + runtime state, not source)
 .redis/
+
+# JFR recordings. Never commit these.
+#
+# `-XX:StartFlightRecording=settings=profile` records the JVM's initial environment variables, so every
+# recording taken on a developer machine embeds whatever was exported in that shell. The recordings from
+# the discarded end-to-end run carried a live OPENAI_API_KEY into eight files; GitHub's push protection
+# caught it. The analysis a .jfr supports is worth less than the risk of shipping one.
+*.jfr

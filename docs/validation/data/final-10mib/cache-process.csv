@@ -1,0 +1,13 @@
+label,arm,cacheCpuBeforeSec,cacheCpuAfterSec,cacheRssKb
+final-caffeine-10mib-c8-r1,caffeine,-1,-1,-1
+final-fastcache-embedded-10mib-c8-r1,fastcache-embedded,-1,-1,-1
+final-fastcache-sidecar-10mib-c8-r1,fastcache-sidecar,0.81,81.88,608748
+final-redis-10mib-c8-r1,redis,0.25,65.86,541344
+final-fastcache-embedded-10mib-c8-r2,fastcache-embedded,-1,-1,-1
+final-fastcache-sidecar-10mib-c8-r2,fastcache-sidecar,82.29,165.98,630464
+final-redis-10mib-c8-r2,redis,66.09,131.73,541376
+final-caffeine-10mib-c8-r2,caffeine,-1,-1,-1
+final-fastcache-sidecar-10mib-c8-r3,fastcache-sidecar,166.27,250.12,854160
+final-redis-10mib-c8-r3,redis,131.97,197.72,541344
+final-caffeine-10mib-c8-r3,caffeine,-1,-1,-1
+final-fastcache-embedded-10mib-c8-r3,fastcache-embedded,-1,-1,-1

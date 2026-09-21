@@ -1,0 +1,12 @@
+Sep 21, 2026 6:48:29 AM org.apache.coyote.AbstractProtocol init
+INFO: Initializing ProtocolHandler ["http-nio-8090"]
+Sep 21, 2026 6:48:29 AM org.apache.catalina.core.StandardService startInternal
+INFO: Starting service [Tomcat]
+Sep 21, 2026 6:48:29 AM org.apache.catalina.core.StandardEngine startInternal
+INFO: Starting Servlet engine: [Apache Tomcat/10.1.30]
+Sep 21, 2026 6:48:29 AM org.apache.catalina.core.ApplicationContext log
+INFO: Initializing Spring embedded WebApplicationContext
+Sep 21, 2026 6:48:30 AM org.apache.coyote.AbstractProtocol start
+INFO: Starting ProtocolHandler ["http-nio-8090"]
+Sep 21, 2026 6:48:31 AM org.apache.catalina.core.ApplicationContext log
+INFO: Initializing Spring DispatcherServlet 'dispatcherServlet'

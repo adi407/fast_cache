@@ -1,0 +1,17 @@
+[1.158s][info][jfr,startup] Started recording 1. No limit specified, using maxsize=250MB as default.
+[1.158s][info][jfr,startup] 
+[1.158s][info][jfr,startup] Use jcmd 37752 JFR.dump name=1 to copy recording data to file.
+Sept 20, 2026 2:17:15 AM org.apache.coyote.AbstractProtocol init
+INFO: Initializing ProtocolHandler ["http-nio-8090"]
+Sept 20, 2026 2:17:15 AM org.apache.catalina.core.StandardService startInternal
+INFO: Starting service [Tomcat]
+Sept 20, 2026 2:17:15 AM org.apache.catalina.core.StandardEngine startInternal
+INFO: Starting Servlet engine: [Apache Tomcat/10.1.30]
+Sept 20, 2026 2:17:15 AM org.apache.catalina.core.ApplicationContext log
+INFO: Initializing Spring embedded WebApplicationContext
+Sept 20, 2026 2:17:16 AM org.apache.coyote.AbstractProtocol start
+INFO: Starting ProtocolHandler ["http-nio-8090"]
+Sept 20, 2026 2:17:17 AM org.apache.catalina.core.ApplicationContext log
+INFO: Initializing Spring DispatcherServlet 'dispatcherServlet'
+[probe] RSS unavailable: java.lang.NumberFormatException: For input string: "Get-Process : Cannot find a process with the process identifier 10886."
+2026-09-20T02:19:12.101+05:30  WARN 37752 --- [nio-8090-exec-6] .w.s.m.s.DefaultHandlerExceptionResolver : Resolved [org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.nio.channels.ClosedChannelException]

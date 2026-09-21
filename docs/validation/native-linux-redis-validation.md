@@ -3,6 +3,13 @@
 Run on native Linux with native Redis 7.0.15, 2026-09-19. Raw CSVs, the Redis config and the environment
 record are in [`data/`](data/). Where a section says a number was not measured, it was not measured.
 
+> **The measurements in this document stand (classified VALID, scoped to `--reject-ratio 1.0`). Its
+> product conclusions in §21–§25 are superseded by [`THESIS_REASSESSMENT.md`](THESIS_REASSESSMENT.md),**
+> which separates the three FastCache architectures, finds the JVM sidecar path does not exist as a
+> product, and narrows the surviving differentiator to large-value bandwidth. §24's recommended next
+> experiment was attempted and its decisive cell was contaminated; the replacement is
+> `THESIS_REASSESSMENT.md` §One next experiment.
+
 ---
 
 ## 1. Executive summary

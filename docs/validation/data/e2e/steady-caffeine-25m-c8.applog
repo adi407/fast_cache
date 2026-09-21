@@ -1,0 +1,15 @@
+[1.167s][info][jfr,startup] Started recording 1. No limit specified, using maxsize=250MB as default.
+[1.167s][info][jfr,startup] 
+[1.167s][info][jfr,startup] Use jcmd 9212 JFR.dump name=1 to copy recording data to file.
+Sept 20, 2026 2:11:55 AM org.apache.coyote.AbstractProtocol init
+INFO: Initializing ProtocolHandler ["http-nio-8090"]
+Sept 20, 2026 2:11:55 AM org.apache.catalina.core.StandardService startInternal
+INFO: Starting service [Tomcat]
+Sept 20, 2026 2:11:55 AM org.apache.catalina.core.StandardEngine startInternal
+INFO: Starting Servlet engine: [Apache Tomcat/10.1.30]
+Sept 20, 2026 2:11:55 AM org.apache.catalina.core.ApplicationContext log
+INFO: Initializing Spring embedded WebApplicationContext
+Sept 20, 2026 2:11:57 AM org.apache.coyote.AbstractProtocol start
+INFO: Starting ProtocolHandler ["http-nio-8090"]
+Sept 20, 2026 2:11:57 AM org.apache.catalina.core.ApplicationContext log
+INFO: Initializing Spring DispatcherServlet 'dispatcherServlet'
